@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
-/* ─── tiny hook: reveals element when it enters viewport ─── */
-function useInView(threshold = 0.15) {
+function useInView(threshold = 0.1) {
   const ref = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   useEffect(() => {
@@ -17,74 +16,37 @@ function useInView(threshold = 0.15) {
   return { ref, visible }
 }
 
-/* ─── animated counter ─── */
 function Counter({ to, suffix = '' }: { to: number; suffix?: string }) {
   const [val, setVal] = useState(0)
   const { ref, visible } = useInView()
   useEffect(() => {
     if (!visible) return
-    let start = 0
-    const step = Math.ceil(to / 60)
+    let cur = 0
+    const step = Math.ceil(to / 50)
     const id = setInterval(() => {
-      start += step
-      if (start >= to) { setVal(to); clearInterval(id) }
-      else setVal(start)
-    }, 24)
+      cur += step
+      if (cur >= to) { setVal(to); clearInterval(id) }
+      else setVal(cur)
+    }, 28)
     return () => clearInterval(id)
   }, [visible, to])
   return <span ref={ref}>{val.toLocaleString()}{suffix}</span>
 }
 
-/* ─── robot mini SVG for hero ─── */
-function MiniRobot({ size = 48 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100">
-      <line x1="50" y1="8" x2="50" y2="20" stroke="#818cf8" strokeWidth="3" strokeLinecap="round"/>
-      <circle cx="50" cy="6" r="4" fill="#fbbf24">
-        <animate attributeName="r" values="4;6;4" dur="1.5s" repeatCount="indefinite"/>
-      </circle>
-      <rect x="15" y="20" width="70" height="60" rx="16" fill="#1e1b4b" stroke="#4338ca" strokeWidth="2"/>
-      <rect x="22" y="27" width="56" height="46" rx="10" fill="#0f0a2e"/>
-      <ellipse cx="36" cy="48" rx="9" ry="9" fill="#34d399" opacity="0.9"/>
-      <ellipse cx="64" cy="48" rx="9" ry="9" fill="#34d399" opacity="0.9"/>
-      <circle cx="39" cy="45" r="2.5" fill="white" opacity="0.7"/>
-      <circle cx="67" cy="45" r="2.5" fill="white" opacity="0.7"/>
-      <path d="M 30 58 Q 50 70 70 58" stroke="#34d399" strokeWidth="3" fill="none" strokeLinecap="round"/>
-      <ellipse cx="26" cy="60" rx="5" ry="3" fill="#f472b6" opacity="0.4"/>
-      <ellipse cx="74" cy="60" rx="5" ry="3" fill="#f472b6" opacity="0.4"/>
-      <circle cx="15" cy="50" r="4" fill="#312e81" stroke="#4338ca" strokeWidth="1.5"/>
-      <circle cx="85" cy="50" r="4" fill="#312e81" stroke="#4338ca" strokeWidth="1.5"/>
-    </svg>
-  )
-}
-
-/* ─── flow icon ─── */
-function FlowIcon({ size = 48 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100">
-      <circle cx="50" cy="50" r="46" fill="#1a0533" stroke="#7c3aed" strokeWidth="2"/>
-      <path d="M 30 50 Q 50 20 70 50 Q 50 80 30 50" fill="#7c3aed" opacity="0.6"/>
-      <circle cx="50" cy="50" r="10" fill="#a855f7">
-        <animate attributeName="r" values="10;13;10" dur="2s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="1;0.6;1" dur="2s" repeatCount="indefinite"/>
-      </circle>
-      <line x1="50" y1="18" x2="50" y2="28" stroke="#a855f7" strokeWidth="2.5" strokeLinecap="round"/>
-      <line x1="50" y1="72" x2="50" y2="82" stroke="#a855f7" strokeWidth="2.5" strokeLinecap="round"/>
-      <line x1="18" y1="50" x2="28" y2="50" stroke="#a855f7" strokeWidth="2.5" strokeLinecap="round"/>
-      <line x1="72" y1="50" x2="82" y2="50" stroke="#a855f7" strokeWidth="2.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-/* ════════════════════════════════ MAIN ════════════════════════════════ */
 export default function LandingPage() {
-  const [navScrolled, setNavScrolled] = useState(false)
-  const [activeTab, setActiveTab] = useState<'wisp' | 'flow'>('wisp')
+  const [scrolled, setScrolled] = useState(false)
+  const [mouseX, setMouseX] = useState(0)
+  const [mouseY, setMouseY] = useState(0)
 
   useEffect(() => {
-    const onScroll = () => setNavScrolled(window.scrollY > 40)
+    const onScroll = () => setScrolled(window.scrollY > 60)
+    const onMouse = (e: MouseEvent) => {
+      setMouseX((e.clientX / window.innerWidth) * 100)
+      setMouseY((e.clientY / window.innerHeight) * 100)
+    }
     window.addEventListener('scroll', onScroll)
-    return () => window.removeEventListener('scroll', onScroll)
+    window.addEventListener('mousemove', onMouse)
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('mousemove', onMouse) }
   }, [])
 
   const s1 = useInView()
@@ -92,484 +54,395 @@ export default function LandingPage() {
   const s3 = useInView()
   const s4 = useInView()
   const s5 = useInView()
+  const s6 = useInView()
 
   return (
-    <div
-      className="min-h-screen bg-[#06030f] text-white overflow-x-hidden"
-      style={{ fontFamily: "'DM Sans', 'Nunito', system-ui, sans-serif" }}
-    >
-      {/* ── Google Fonts ── */}
+    <div className="bg-[#0a0a0a] text-white min-h-screen overflow-x-hidden selection:bg-white selection:text-black"
+      style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap');
-        .font-display { font-family: 'Syne', system-ui, sans-serif; }
-        .fade-up { opacity: 0; transform: translateY(32px); transition: opacity 0.7s ease, transform 0.7s ease; }
-        .fade-up.visible { opacity: 1; transform: translateY(0); }
-        .fade-up-d1 { transition-delay: 0.1s; }
-        .fade-up-d2 { transition-delay: 0.2s; }
-        .fade-up-d3 { transition-delay: 0.35s; }
-        .fade-up-d4 { transition-delay: 0.5s; }
-        .glow-purple { box-shadow: 0 0 40px rgba(139,92,246,0.35); }
-        .glow-indigo  { box-shadow: 0 0 40px rgba(99,102,241,0.35); }
-        .card-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 24px 48px rgba(0,0,0,0.4); }
-        .noise::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-          pointer-events: none;
-          opacity: 0.4;
-        }
-        .mesh-bg {
-          background:
-            radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.18) 0%, transparent 60%),
-            radial-gradient(ellipse 60% 50% at 80% 80%, rgba(139,92,246,0.14) 0%, transparent 60%),
-            radial-gradient(ellipse 50% 40% at 60% 30%, rgba(16,185,129,0.07) 0%, transparent 60%),
-            #06030f;
-        }
-        @keyframes float { 0%,100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-16px) rotate(2deg); } }
-        .float { animation: float 6s ease-in-out infinite; }
-        .float-delay { animation: float 6s ease-in-out infinite 1.5s; }
-        @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
-        .shimmer-line {
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
-          background-size: 400px 1px;
-          animation: shimmer 3s linear infinite;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Serif+Display:ital@0;1&display=swap');
+        .serif { font-family: 'DM Serif Display', Georgia, serif; }
+        .serif-italic { font-family: 'DM Serif Display', Georgia, serif; font-style: italic; }
+        .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.9s cubic-bezier(0.16,1,0.3,1), transform 0.9s cubic-bezier(0.16,1,0.3,1); }
+        .reveal.in { opacity: 1; transform: none; }
+        .reveal-d1 { transition-delay: 0.1s; }
+        .reveal-d2 { transition-delay: 0.22s; }
+        .reveal-d3 { transition-delay: 0.34s; }
+        .reveal-d4 { transition-delay: 0.46s; }
+        .line-draw { stroke-dasharray: 1000; stroke-dashoffset: 1000; transition: stroke-dashoffset 1.8s cubic-bezier(0.16,1,0.3,1); }
+        .line-draw.in { stroke-dashoffset: 0; }
+        @keyframes drift { 0%,100% { transform: translate(0,0); } 33% { transform: translate(6px,-8px); } 66% { transform: translate(-4px,5px); } }
+        .drift { animation: drift 12s ease-in-out infinite; }
+        .drift-slow { animation: drift 18s ease-in-out infinite 3s; }
+        @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .ticker-inner { animation: ticker 22s linear infinite; }
+        .hover-lift { transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
+        .hover-lift:hover { transform: translateY(-3px); }
+        hr.fancy { border: none; border-top: 1px solid rgba(255,255,255,0.06); }
       `}</style>
 
+      {/* ── Ambient glow follows mouse ── */}
+      <div className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000"
+        style={{
+          background: `radial-gradient(600px circle at ${mouseX}% ${mouseY}%, rgba(120,80,255,0.04), transparent 70%)`
+        }} />
+
       {/* ── NAV ── */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navScrolled ? 'bg-[#06030f]/90 backdrop-blur-md border-b border-white/5' : ''}`}>
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold">W</div>
-            <span className="font-display font-800 text-lg tracking-tight">Wisp<span className="text-purple-400">+</span>Flow</span>
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-white/[0.04]' : ''}`}>
+        <div className="max-w-6xl mx-auto px-8 py-5 flex items-center justify-between">
+          <Link href="/" className="text-sm font-medium tracking-tight">
+            Wisp<span className="text-white/30">+</span>Flow
+          </Link>
+          <div className="hidden md:flex items-center gap-10 text-xs text-white/40 tracking-wide uppercase">
+            <a href="#produse" className="hover:text-white transition-colors duration-300">Produse</a>
+            <a href="#cum-functioneaza" className="hover:text-white transition-colors duration-300">Cum funcționează</a>
+            <a href="#preturi" className="hover:text-white transition-colors duration-300">Prețuri</a>
           </div>
-          <div className="hidden md:flex items-center gap-8 text-sm text-gray-400">
-            <a href="#produs" className="hover:text-white transition-colors">Produs</a>
-            <a href="#cum-functioneaza" className="hover:text-white transition-colors">Cum funcționează</a>
-            <a href="#preturi" className="hover:text-white transition-colors">Prețuri</a>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/wisp" className="text-sm text-gray-400 hover:text-white transition-colors hidden md:block">
-              Wisp Junior →
-            </Link>
-            <Link
-              href="/flow"
-              className="text-sm bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-full transition-all font-medium"
-            >
-              Încearcă Flow
-            </Link>
-          </div>
+          <Link href="/flow"
+            className="text-xs border border-white/15 hover:border-white/40 text-white/70 hover:text-white px-5 py-2.5 rounded-full transition-all duration-300">
+            Încearcă gratuit
+          </Link>
         </div>
       </nav>
 
-      {/* ── HERO ── */}
-      <section className="mesh-bg noise relative min-h-screen flex flex-col items-center justify-center text-center px-6 pt-24 pb-16">
-        {/* floating decorations */}
-        <div className="absolute top-32 left-12 float opacity-30 hidden lg:block">
-          <MiniRobot size={64} />
-        </div>
-        <div className="absolute bottom-32 right-16 float-delay opacity-20 hidden lg:block">
-          <FlowIcon size={56} />
-        </div>
-        <div className="absolute top-1/2 left-8 w-px h-32 shimmer-line hidden lg:block" />
-        <div className="absolute top-1/2 right-8 w-px h-32 shimmer-line hidden lg:block" />
+      {/* ══════════════════════════════════════
+          HERO
+      ══════════════════════════════════════ */}
+      <section className="relative min-h-screen flex flex-col justify-center px-8 pt-32 pb-20 max-w-6xl mx-auto">
 
-        {/* badge */}
-        <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-xs text-indigo-300 mb-8 font-medium">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-          Beta deschis — 50 locuri rămase
-        </div>
+        {/* floating orbs */}
+        <div className="absolute top-40 right-20 w-72 h-72 rounded-full drift opacity-[0.03]"
+          style={{ background: 'radial-gradient(circle, #7c3aed, transparent)' }} />
+        <div className="absolute bottom-40 left-10 w-48 h-48 rounded-full drift-slow opacity-[0.04]"
+          style={{ background: 'radial-gradient(circle, #4f46e5, transparent)' }} />
 
-        <h1 className="font-display text-5xl md:text-7xl lg:text-8xl font-800 leading-[0.95] tracking-tight mb-6 max-w-4xl">
-          Creierul tău<br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-            funcționează altfel.
-          </span><br />
-          <span className="text-gray-200">Noi construim</span><br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">în jurul lui.</span>
-        </h1>
+        <div className="relative z-10 max-w-5xl">
+          {/* eyebrow */}
+          <div className="flex items-center gap-3 mb-12">
+            <div className="w-6 h-px bg-white/20" />
+            <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">
+              Pentru minți care funcționează altfel
+            </span>
+          </div>
 
-        <p className="text-gray-400 text-lg md:text-xl max-w-xl mb-10 leading-relaxed">
-          Wisp + Flow — primul ecosistem AI pentru minți cu ADHD, de la 6 la 40+ ani.
-          Nu te forțăm să te adaptezi la sistem. Construim sistemul în jurul tău.
-        </p>
+          {/* headline */}
+          <h1 className="serif text-[clamp(3.5rem,9vw,8rem)] leading-[0.92] tracking-tight mb-10 text-white/95">
+            Nu forța creierul<br />
+            să se adapteze<br />
+            <span className="serif-italic text-white/45">la sistem.</span>
+          </h1>
 
-        <div className="flex flex-col sm:flex-row items-center gap-4 mb-16">
-          <Link
-            href="/wisp"
-            className="group flex items-center gap-3 bg-indigo-600 hover:bg-indigo-500 text-white px-7 py-4 rounded-2xl text-base font-semibold transition-all glow-indigo"
-          >
-            <MiniRobot size={24} />
-            Wisp pentru copii
-            <span className="text-indigo-300 group-hover:translate-x-1 transition-transform">→</span>
-          </Link>
-          <Link
-            href="/flow"
-            className="group flex items-center gap-3 bg-purple-700/50 hover:bg-purple-600/70 border border-purple-500/40 text-white px-7 py-4 rounded-2xl text-base font-semibold transition-all"
-          >
-            <FlowIcon size={24} />
-            Flow pentru adulți
-            <span className="text-purple-300 group-hover:translate-x-1 transition-transform">→</span>
-          </Link>
-        </div>
-
-        {/* stats */}
-        <div className="flex flex-wrap justify-center gap-8 md:gap-16 text-center">
-          {[
-            { n: 150, suffix: 'M', label: 'familii afectate de ADHD' },
-            { n: 65,  suffix: '%', label: 'retenție țintă la 30 de zile' },
-            { n: 84,  suffix: '%', label: 'scor problemă startup' },
-          ].map((s, i) => (
-            <div key={i}>
-              <p className="font-display text-4xl md:text-5xl font-800 text-white">
-                <Counter to={s.n} suffix={s.suffix} />
-              </p>
-              <p className="text-gray-500 text-sm mt-1">{s.label}</p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-8 mb-24">
+            <p className="text-white/40 text-base leading-relaxed max-w-xs font-light">
+              Primul ecosistem AI pentru ADHD — de la 6 la 40+ ani. Construim sistemul în jurul tău.
+            </p>
+            <div className="flex items-center gap-4">
+              <Link href="/flow"
+                className="group flex items-center gap-3 bg-white text-black text-sm font-medium px-7 py-3.5 rounded-full hover:bg-white/90 transition-all duration-300 hover-lift">
+                Încearcă Flow
+                <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
+              </Link>
+              <Link href="/wisp"
+                className="text-sm text-white/40 hover:text-white transition-colors duration-300">
+                sau Wisp pentru copii ↗
+              </Link>
             </div>
+          </div>
+
+          {/* stats row */}
+          <div className="grid grid-cols-3 gap-8 pt-8 border-t border-white/[0.06] max-w-lg">
+            {[
+              { n: 150, s: 'M', label: 'familii cu ADHD global' },
+              { n: 65, s: '%', label: 'retenție țintă' },
+              { n: 3, s: '', label: 'produse. un ecosistem.' },
+            ].map((stat, i) => (
+              <div key={i}>
+                <p className="serif text-3xl text-white/80 mb-1">
+                  <Counter to={stat.n} suffix={stat.s} />
+                </p>
+                <p className="text-white/25 text-xs font-light">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── TICKER ── */}
+      <div className="border-y border-white/[0.05] py-4 overflow-hidden">
+        <div className="ticker-inner flex gap-16 whitespace-nowrap text-white/15 text-xs tracking-widest uppercase font-light">
+          {[...Array(2)].map((_, j) => (
+            <span key={j} className="flex gap-16">
+              {['Wisp Junior', '·', 'Wisp Teen', '·', 'Wisp Adult', '·', 'Flow', '·', 'ADHD', '·', 'Deep Work', '·', 'Pattern Recognition', '·', 'Memorie Persistentă', '·', 'Task Breakdown', '·', 'Profil Neurologic', '·'].map((t, i) => (
+                <span key={i}>{t}</span>
+              ))}
+            </span>
           ))}
         </div>
-      </section>
+      </div>
 
-      {/* ── PROBLEM ── */}
-      <section id="produs" className="py-24 px-6">
-        <div
-          ref={s1.ref}
-          className={`max-w-5xl mx-auto fade-up ${s1.visible ? 'visible' : ''}`}
-        >
-          <div className="text-center mb-16">
-            <p className="text-purple-400 text-sm font-semibold uppercase tracking-widest mb-4">Problema</p>
-            <h2 className="font-display text-4xl md:text-5xl font-800 leading-tight">
-              Soluțiile existente<br />
-              <span className="text-gray-500">eșuează în medie după</span>{' '}
-              <span className="text-red-400">11 minute</span>
-            </h2>
+      {/* ══════════════════════════════════════
+          PRODUSE
+      ══════════════════════════════════════ */}
+      <section id="produse" className="py-40 px-8 max-w-6xl mx-auto">
+
+        <div ref={s1.ref} className={`reveal ${s1.visible ? 'in' : ''} mb-20`}>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-6 h-px bg-white/20" />
+            <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">Ecosistemul</span>
+          </div>
+          <h2 className="serif text-[clamp(2.5rem,6vw,5rem)] leading-tight text-white/90">
+            Trei produse.<br />
+            <span className="serif-italic text-white/35">O singură memorie.</span>
+          </h2>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-px bg-white/[0.05] rounded-2xl overflow-hidden">
+
+          {/* Wisp Junior */}
+          <div ref={s2.ref}
+            className={`reveal ${s2.visible ? 'in' : ''} reveal-d1 bg-[#0a0a0a] p-8 flex flex-col hover-lift group`}>
+            <div className="mb-8">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg mb-6">
+                🤖
+              </div>
+              <p className="text-white/25 text-xs tracking-widest uppercase mb-2">Wisp Junior</p>
+              <h3 className="serif text-2xl text-white/85 mb-3">6 — 12 ani</h3>
+              <p className="text-white/35 text-sm leading-relaxed font-light">
+                Companion AI cu personalitate și memorie. Sesiuni de 8 minute, puzzle-uri cognitive camuflate în aventuri, profil psihocognitiv lunar.
+              </p>
+            </div>
+            <div className="mt-auto space-y-2 mb-6">
+              {['Sesiuni 8 min — fereastra ADHD', 'Detectie oboseală în timp real', 'Dashboard parental lunar'].map((f, i) => (
+                <div key={i} className="flex items-center gap-2.5 text-xs text-white/30">
+                  <div className="w-1 h-1 rounded-full bg-indigo-400/50" />
+                  {f}
+                </div>
+              ))}
+            </div>
+            <Link href="/wisp"
+              className="text-xs text-indigo-400/60 group-hover:text-indigo-400 transition-colors duration-300 flex items-center gap-1.5">
+              Încearcă Wisp Junior <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
+            </Link>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            {[
-              { label: 'Tutori AI (Khan, Squirrel)', pct: 18, color: 'bg-red-500' },
-              { label: 'Apps educative (Duolingo)', pct: 24, color: 'bg-orange-500' },
-              { label: 'Apps productivitate (Notion)', pct: 12, color: 'bg-yellow-500' },
-              { label: 'Wisp + Flow (țintă)', pct: 65, color: 'bg-purple-500' },
-            ].map((item, i) => (
-              <div key={i} className={`bg-white/3 border border-white/8 rounded-2xl p-5 card-hover fade-up fade-up-d${i + 1} ${s1.visible ? 'visible' : ''}`}>
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-sm text-gray-300">{item.label}</span>
-                  <span className={`text-sm font-bold ${item.pct === 65 ? 'text-purple-400' : 'text-gray-400'}`}>
-                    {item.pct}%
-                  </span>
-                </div>
-                <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                  <div
-                    className={`h-2 rounded-full ${item.color} transition-all duration-1000`}
-                    style={{ width: s1.visible ? `${item.pct}%` : '0%' }}
-                  />
-                </div>
-                <p className="text-xs text-gray-600 mt-2">retenție utilizatori la 30 de zile</p>
+          {/* Wisp Teen */}
+          <div ref={s2.ref}
+            className={`reveal ${s2.visible ? 'in' : ''} reveal-d2 bg-[#0a0a0a] p-8 flex flex-col hover-lift group border-x border-white/[0.05]`}>
+            <div className="mb-8">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-lg mb-6">
+                ⌨️
               </div>
-            ))}
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-white/25 text-xs tracking-widest uppercase">Wisp Teen</p>
+                <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400/70 px-2 py-0.5 rounded-full">nou</span>
+              </div>
+              <h3 className="serif text-2xl text-white/85 mb-3">13 — 18 ani</h3>
+              <p className="text-white/35 text-sm leading-relaxed font-light">
+                Co-creator AI pentru proiecte reale. Cod, design, muzică, scriere — output concret și partajabil în 3 zile, nu certificate.
+              </p>
+            </div>
+            <div className="mt-auto space-y-2 mb-6">
+              {['Proiecte reale în 3 zile', 'AI ca partener, nu ca profesor', 'Output demonstrabil și partajabil'].map((f, i) => (
+                <div key={i} className="flex items-center gap-2.5 text-xs text-white/30">
+                  <div className="w-1 h-1 rounded-full bg-emerald-400/50" />
+                  {f}
+                </div>
+              ))}
+            </div>
+            <Link href="/wisp-teen"
+              className="text-xs text-emerald-400/60 group-hover:text-emerald-400 transition-colors duration-300 flex items-center gap-1.5">
+              Încearcă Wisp Teen <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
+            </Link>
+          </div>
+
+          {/* Flow */}
+          <div ref={s2.ref}
+            className={`reveal ${s2.visible ? 'in' : ''} reveal-d3 bg-[#0a0a0a] p-8 flex flex-col hover-lift group`}>
+            <div className="mb-8">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-lg mb-6">
+                ⚡
+              </div>
+              <p className="text-white/25 text-xs tracking-widest uppercase mb-2">Flow</p>
+              <h3 className="serif text-2xl text-white/85 mb-3">18+ ani</h3>
+              <p className="text-white/35 text-sm leading-relaxed font-light">
+                Partener AI pentru adulți cu ADHD, burnout sau deficit de motivație. Nu organizează task-uri — reorganizează creierul în jurul lor.
+              </p>
+            </div>
+            <div className="mt-auto space-y-2 mb-6">
+              {['Profil neurologic live', 'Calibrare zilnică pe stare', 'Pattern recognition după 7 zile'].map((f, i) => (
+                <div key={i} className="flex items-center gap-2.5 text-xs text-white/30">
+                  <div className="w-1 h-1 rounded-full bg-purple-400/50" />
+                  {f}
+                </div>
+              ))}
+            </div>
+            <Link href="/flow"
+              className="text-xs text-purple-400/60 group-hover:text-purple-400 transition-colors duration-300 flex items-center gap-1.5">
+              Încearcă Flow <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
+            </Link>
+          </div>
+
+        </div>
+      </section>
+
+      <hr className="fancy max-w-6xl mx-auto" />
+
+      {/* ══════════════════════════════════════
+          PROBLEMA
+      ══════════════════════════════════════ */}
+      <section className="py-40 px-8 max-w-6xl mx-auto">
+        <div ref={s3.ref} className={`reveal ${s3.visible ? 'in' : ''}`}>
+          <div className="grid md:grid-cols-2 gap-20 items-start">
+            <div>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-6 h-px bg-white/20" />
+                <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">Problema</span>
+              </div>
+              <h2 className="serif text-[clamp(2rem,5vw,4rem)] leading-tight text-white/90 mb-8">
+                Soluțiile existente<br />
+                <span className="serif-italic text-white/35">eșuează după<br />11 minute.</span>
+              </h2>
+              <p className="text-white/35 text-sm leading-relaxed font-light max-w-xs">
+                Fiecare app de productivitate, fiecare tutor AI, fiecare joc educativ e construit pentru un creier neurotipic. Creierul cu ADHD funcționează diferit — nu mai lent.
+              </p>
+            </div>
+
+            <div className="space-y-5 pt-4">
+              {[
+                { label: 'Tutori AI (Khan, Squirrel)', pct: 18, color: 'bg-red-500/40' },
+                { label: 'Apps educative (Duolingo)', pct: 24, color: 'bg-orange-500/40' },
+                { label: 'Apps productivitate', pct: 12, color: 'bg-yellow-500/40' },
+                { label: 'Terapie cognitivă (referință)', pct: 72, color: 'bg-white/20' },
+                { label: 'Wisp + Flow (țintă)', pct: 65, color: 'bg-purple-400/60' },
+              ].map((item, i) => (
+                <div key={i} className={`reveal reveal-d${Math.min(i + 1, 4)} ${s3.visible ? 'in' : ''}`}>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs text-white/35 font-light">{item.label}</span>
+                    <span className={`text-xs font-medium ${item.label.includes('Wisp') ? 'text-purple-400' : 'text-white/20'}`}>
+                      {item.pct}%
+                    </span>
+                  </div>
+                  <div className="h-px bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className={`h-px ${item.color} transition-all duration-1000 delay-300`}
+                      style={{ width: s3.visible ? `${item.pct}%` : '0%' }}
+                    />
+                  </div>
+                </div>
+              ))}
+              <p className="text-white/15 text-xs font-light pt-2">retenție utilizatori la 30 de zile</p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── PRODUCTS TAB ── */}
-      <section id="cum-functioneaza" className="py-24 px-6 bg-gradient-to-b from-transparent via-indigo-950/10 to-transparent">
-        <div ref={s2.ref} className={`max-w-5xl mx-auto fade-up ${s2.visible ? 'visible' : ''}`}>
-          <div className="text-center mb-12">
-            <p className="text-indigo-400 text-sm font-semibold uppercase tracking-widest mb-4">Produsele</p>
-            <h2 className="font-display text-4xl md:text-5xl font-800">Două produse. Un ecosistem.</h2>
+      <hr className="fancy max-w-6xl mx-auto" />
+
+      {/* ══════════════════════════════════════
+          CUM FUNCTIONEAZA
+      ══════════════════════════════════════ */}
+      <section id="cum-functioneaza" className="py-40 px-8 max-w-6xl mx-auto">
+        <div ref={s4.ref} className={`reveal ${s4.visible ? 'in' : ''}`}>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-6 h-px bg-white/20" />
+            <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">Mecanismul</span>
           </div>
+          <h2 className="serif text-[clamp(2.5rem,6vw,5rem)] leading-tight text-white/90 mb-20">
+            Memoria care crește<br />
+            <span className="serif-italic text-white/35">odată cu tine.</span>
+          </h2>
 
-          {/* Tab switcher */}
-          <div className="flex justify-center mb-10">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-1.5 flex gap-2">
-              <button
-                onClick={() => setActiveTab('wisp')}
-                className={`px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  activeTab === 'wisp'
-                    ? 'bg-indigo-600 text-white shadow-lg'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                🤖 Wisp — 6 la 25 ani
-              </button>
-              <button
-                onClick={() => setActiveTab('flow')}
-                className={`px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  activeTab === 'flow'
-                    ? 'bg-purple-600 text-white shadow-lg'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                ⚡ Flow — 18+ ani
-              </button>
-            </div>
-          </div>
-
-          {activeTab === 'wisp' && (
-            <div className="grid md:grid-cols-2 gap-8 items-center">
-              <div>
-                <div className="flex items-center gap-3 mb-6">
-                  <MiniRobot size={52} />
-                  <div>
-                    <h3 className="font-display text-2xl font-800">Wisp Junior</h3>
-                    <p className="text-indigo-400 text-sm">Companion AI pentru copii 6–12 ani</p>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  {[
-                    { icon: '🧠', title: 'Profil psihocognitiv', desc: 'Wisp înțelege cum gândește copilul tău în primele 3 sesiuni.' },
-                    { icon: '⏱️', title: 'Sesiuni de 8 minute', desc: 'Exact fereastra de atenție ADHD. Niciodată mai mult fără consimțământ.' },
-                    { icon: '🧩', title: 'Puzzle-uri cognitive', desc: 'Matematică, logică, știință — camuflate în aventuri.' },
-                    { icon: '⭐', title: 'Sistem de stele', desc: 'Motivație intrinsecă, nu badge-uri fără sens.' },
-                  ].map((f, i) => (
-                    <div key={i} className="flex gap-4 p-4 bg-white/3 border border-white/8 rounded-xl card-hover">
-                      <span className="text-2xl">{f.icon}</span>
-                      <div>
-                        <p className="font-semibold text-sm text-white">{f.title}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{f.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <Link
-                  href="/wisp"
-                  className="mt-6 inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all"
-                >
-                  Testează Wisp acum →
-                </Link>
-              </div>
-
-              <div className="bg-gradient-to-br from-indigo-950 to-purple-950 rounded-3xl p-8 border border-indigo-800/40 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-10"
-                  style={{ backgroundImage: 'radial-gradient(circle at 30% 70%, #6366f1 0%, transparent 50%)' }}
-                />
-                <div className="relative">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10"><MiniRobot size={40} /></div>
-                    <div>
-                      <p className="font-bold text-sm">WISP</p>
-                      <p className="text-indigo-400 text-xs">Robotul tău prieten</p>
-                    </div>
-                  </div>
-                  {[
-                    { role: 'bot', text: 'Bună, Alex! 🤖 Ce aventură facem azi — spațiu sau dinozauri?' },
-                    { role: 'user', text: 'Dinozauri! 🦕' },
-                    { role: 'bot', text: 'Misiune activată! 🦖 Știai că T-Rex-ul alerga cu 30 km/h? Hai să rezolvăm un puzzle despre el!' },
-                  ].map((m, i) => (
-                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} mb-3`}>
-                      <div className={`max-w-xs rounded-2xl px-4 py-2.5 text-sm ${
-                        m.role === 'user'
-                          ? 'bg-indigo-500 text-white'
-                          : 'bg-white/10 text-gray-100 border border-white/10'
-                      }`}>
-                        {m.text}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="mt-4 bg-indigo-900/60 rounded-2xl p-4 border border-indigo-700/40">
-                    <p className="text-xs text-indigo-300 mb-2 font-semibold">🧩 Puzzle magic</p>
-                    <p className="text-sm text-white mb-3">Dacă T-Rex aleargă 30 km/h, câți km face în 2 ore?</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {['40 km', '60 km', '50 km', '70 km'].map((o, i) => (
-                        <button key={i} className={`text-xs py-2 rounded-lg border transition-all ${
-                          i === 1
-                            ? 'bg-green-600/30 border-green-500 text-green-200'
-                            : 'bg-white/5 border-white/10 text-gray-400'
-                        }`}>
-                          {o}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'flow' && (
-            <div className="grid md:grid-cols-2 gap-8 items-center">
-              <div>
-                <div className="flex items-center gap-3 mb-6">
-                  <FlowIcon size={52} />
-                  <div>
-                    <h3 className="font-display text-2xl font-800">Flow</h3>
-                    <p className="text-purple-400 text-sm">Partener AI pentru adulți 18+</p>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  {[
-                    { icon: '🧬', title: 'Profil neurologic live', desc: 'Primele 3 zile Flow te observă și construiește profilul tău real.', pct: 72 },
-                    { icon: '☀️', title: 'Calibrare zilnică', desc: 'Un emoji la start. Flow recalibrează tot programul zilei.', pct: 68 },
-                    { icon: '⚡', title: 'Task breakdown automat', desc: "'Trebuie să termin licența' → 12 micro-taskuri de 25 min.", pct: 81 },
-                    { icon: '📊', title: 'Pattern recognition', desc: 'După 7 zile știe când ești productiv și reorganizează agenda.', pct: 65 },
-                  ].map((f, i) => (
-                    <div key={i} className="flex gap-4 p-4 bg-white/3 border border-white/8 rounded-xl card-hover">
-                      <span className="text-2xl">{f.icon}</span>
-                      <div className="flex-1">
-                        <div className="flex justify-between">
-                          <p className="font-semibold text-sm text-white">{f.title}</p>
-                          <span className="text-xs text-purple-400 font-bold">{f.pct}%</span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-0.5">{f.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <Link
-                  href="/flow"
-                  className="mt-6 inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all"
-                >
-                  Testează Flow acum →
-                </Link>
-              </div>
-
-              <div className="bg-gray-900 rounded-3xl p-8 border border-gray-800 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-10"
-                  style={{ backgroundImage: 'radial-gradient(circle at 70% 30%, #7c3aed 0%, transparent 50%)' }}
-                />
-                <div className="relative">
-                  <div className="flex items-center gap-2 mb-6">
-                    <div className="w-7 h-7 rounded-lg bg-purple-600 flex items-center justify-center text-xs">⚡</div>
-                    <p className="font-bold text-sm">Flow</p>
-                    <span className="ml-auto text-xs text-green-400 animate-pulse">● Live</span>
-                  </div>
-                  {[
-                    { role: 'bot', text: 'Bună! Cum te simți azi?' },
-                    { role: 'user', text: '😴' },
-                    { role: 'bot', text: 'Zi grea, înțeleg. Hai cu taskuri mici — primul e atât de simplu că e imposibil să refuzi. Ce trebuie să faci azi?' },
-                    { role: 'user', text: 'Trebuie să termin capitolul 3 din licență' },
-                    { role: 'bot', text: 'Perfect! Am spart asta în 4 pași de 25 min:\n1. Citește notițele de ieri (25 min)\n2. Scrie introducerea (25 min)\n3. Argumentul principal (25 min)\n4. Concluzie + revizuire (25 min)' },
-                  ].map((m, i) => (
-                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} mb-2`}>
-                      <div className={`max-w-xs rounded-2xl px-3 py-2 text-xs whitespace-pre-wrap ${
-                        m.role === 'user'
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-800 text-gray-200 border border-gray-700'
-                      }`}>
-                        {m.text}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ── HOW IT WORKS ── */}
-      <section className="py-24 px-6">
-        <div ref={s3.ref} className={`max-w-5xl mx-auto fade-up ${s3.visible ? 'visible' : ''}`}>
-          <div className="text-center mb-16">
-            <p className="text-green-400 text-sm font-semibold uppercase tracking-widest mb-4">Cum funcționează</p>
-            <h2 className="font-display text-4xl md:text-5xl font-800">
-              Memoria care crește<br />
-              <span className="text-gray-500">cu tine în timp</span>
-            </h2>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-16">
             {[
               {
-                step: '01', icon: '👁️', title: 'Observă',
-                desc: 'Primele 3 sesiuni construiesc un profil complet — ce îți place, cum gândești, când obosești.',
-                color: 'border-indigo-800/60 bg-indigo-950/30'
+                n: '01', title: 'Observă',
+                body: 'Primele 3 sesiuni construiesc un profil complet — ce îți place, cum gândești, când obosești, ce te blochează.',
+                detail: 'Fiecare alegere în conversație devine semnal. Curriculumul se naște din ce ești — nu din ce decide un minister.'
               },
               {
-                step: '02', icon: '🧠', title: 'Învață',
-                desc: 'Fiecare sesiune adaugă date. După 30 de zile știe mai multe despre tine decât orice test psihologic.',
-                color: 'border-purple-800/60 bg-purple-950/30'
+                n: '02', title: 'Învață',
+                body: 'Fiecare sesiune adaugă date. După 30 de zile știe mai multe despre tine decât orice evaluare psihologică punctuală.',
+                detail: 'Dificultate adaptivă, ton calibrat, momente de pauză — totul invizibil, totul automat.'
               },
               {
-                step: '03', icon: '🎯', title: 'Adaptează',
-                desc: 'Curriculum, ton, dificultate, timing — totul se recalibrează automat în jurul profilului tău.',
-                color: 'border-pink-800/60 bg-pink-950/20'
+                n: '03', title: 'Adaptează',
+                body: 'Curriculum, ton, dificultate, timing — totul se recalibrează automat în jurul profilului tău real.',
+                detail: 'Nu poți copia un an de memorie dintr-o relație reală. Acesta este moatul care crește în timp.'
               },
             ].map((s, i) => (
-              <div key={i} className={`rounded-2xl p-6 border ${s.color} card-hover fade-up fade-up-d${i + 1} ${s3.visible ? 'visible' : ''}`}>
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-3xl">{s.icon}</span>
-                  <span className="text-xs text-gray-600 font-mono">{s.step}</span>
-                </div>
-                <h3 className="font-display text-xl font-800 mb-2">{s.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{s.desc}</p>
+              <div key={i} className={`reveal reveal-d${i + 1} ${s4.visible ? 'in' : ''}`}>
+                <p className="text-white/10 text-xs font-mono mb-6">{s.n}</p>
+                <h3 className="serif text-2xl text-white/80 mb-4">{s.title}</h3>
+                <p className="text-white/35 text-sm leading-relaxed font-light mb-4">{s.body}</p>
+                <p className="text-white/20 text-xs leading-relaxed font-light italic">{s.detail}</p>
               </div>
             ))}
-          </div>
-
-          <div className="mt-12 bg-gradient-to-r from-indigo-950/50 to-purple-950/50 border border-white/8 rounded-3xl p-8 text-center">
-            <p className="text-gray-400 text-sm mb-2">Moat-ul care crește în timp</p>
-            <p className="font-display text-2xl md:text-3xl font-800 text-white">
-              Un competitor poate copia features.<br />
-              <span className="text-purple-400">Nu poate copia un an de memorie dintr-o relație reală.</span>
-            </p>
           </div>
         </div>
       </section>
 
-      {/* ── PRICING ── */}
-      <section id="preturi" className="py-24 px-6 bg-gradient-to-b from-transparent via-purple-950/10 to-transparent">
-        <div ref={s4.ref} className={`max-w-5xl mx-auto fade-up ${s4.visible ? 'visible' : ''}`}>
-          <div className="text-center mb-16">
-            <p className="text-purple-400 text-sm font-semibold uppercase tracking-widest mb-4">Prețuri</p>
-            <h2 className="font-display text-4xl md:text-5xl font-800">Simplu și scalabil</h2>
+      <hr className="fancy max-w-6xl mx-auto" />
+
+      {/* ══════════════════════════════════════
+          PRETURI
+      ══════════════════════════════════════ */}
+      <section id="preturi" className="py-40 px-8 max-w-6xl mx-auto">
+        <div ref={s5.ref} className={`reveal ${s5.visible ? 'in' : ''}`}>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-6 h-px bg-white/20" />
+            <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">Prețuri</span>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
+          <h2 className="serif text-[clamp(2.5rem,6vw,5rem)] leading-tight text-white/90 mb-20">
+            Simplu.<br />
+            <span className="serif-italic text-white/35">Fără surprize.</span>
+          </h2>
+
+          <div className="grid md:grid-cols-3 gap-px bg-white/[0.04] rounded-2xl overflow-hidden">
             {[
               {
-                name: 'Wisp Standard', price: '9', period: 'EUR/lună',
+                name: 'Wisp', price: '9', label: 'EUR / lună',
                 desc: 'Pentru familii active',
-                features: ['Sesiuni nelimitate', 'Memorie completă', 'Curriculum adaptat', 'Puzzle-uri cognitive'],
-                cta: 'Începe gratuit', href: '/wisp',
-                highlight: false, color: 'border-indigo-800/40'
+                features: ['Sesiuni nelimitate', 'Memorie completă', 'Curriculum adaptat', 'Dashboard parental'],
+                cta: 'Începe cu Wisp', href: '/wisp', accent: 'text-indigo-400'
               },
               {
-                name: 'Flow Pro', price: '18', period: 'EUR/lună',
-                desc: 'Pentru freelanceri & profesioniști',
-                features: ['Profil neurologic complet', 'Pattern recognition', 'Coaching AI săptămânal', 'Raport lunar'],
-                cta: 'Încearcă Flow', href: '/flow',
-                highlight: true, color: 'border-purple-500/60'
+                name: 'Flow', price: '9–18', label: 'EUR / lună',
+                desc: 'Pentru adulți cu ADHD sau burnout',
+                features: ['Profil neurologic live', 'Task breakdown automat', 'Pattern recognition', 'Coaching AI săptămânal'],
+                cta: 'Încearcă Flow', href: '/flow', accent: 'text-purple-400',
+                highlight: true
               },
               {
-                name: 'B2B Educație', price: '200–800', period: 'EUR/an/user',
+                name: 'B2B', price: '200–800', label: 'EUR / an / user',
                 desc: 'Școli, universități, cabinete',
                 features: ['Licențe instituționale', 'Dashboard admin', 'Rapoarte agregate', 'Suport dedicat'],
-                cta: 'Contactează-ne', href: 'mailto:hello@wispflow.ai',
-                highlight: false, color: 'border-green-800/40'
+                cta: 'Contactează-ne', href: 'mailto:hello@wispflow.ai', accent: 'text-emerald-400'
               },
             ].map((plan, i) => (
-              <div
-                key={i}
-                className={`rounded-2xl p-6 border ${plan.color} ${plan.highlight ? 'glow-purple scale-105' : ''} card-hover bg-white/3 relative`}
-              >
+              <div key={i}
+                className={`bg-[#0a0a0a] p-10 flex flex-col ${plan.highlight ? 'relative' : ''}`}>
                 {plan.highlight && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs font-bold px-4 py-1 rounded-full">
-                    Popular
-                  </div>
+                  <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
                 )}
-                <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-1">{plan.name}</p>
-                <div className="flex items-baseline gap-1 mb-1">
-                  <span className="font-display text-4xl font-800">{plan.price}</span>
-                  <span className="text-gray-500 text-sm">{plan.period}</span>
+                <div className="mb-8">
+                  <p className="text-white/20 text-xs tracking-widest uppercase mb-4">{plan.name}</p>
+                  <div className="flex items-baseline gap-1.5 mb-1">
+                    <span className="serif text-4xl text-white/80">{plan.price}</span>
+                    <span className="text-white/25 text-xs font-light">{plan.label}</span>
+                  </div>
+                  <p className="text-white/25 text-xs font-light">{plan.desc}</p>
                 </div>
-                <p className="text-gray-500 text-xs mb-5">{plan.desc}</p>
-                <ul className="space-y-2 mb-6">
+                <ul className="space-y-3 mb-10 flex-1">
                   {plan.features.map((f, j) => (
-                    <li key={j} className="flex items-center gap-2 text-sm text-gray-300">
-                      <span className="text-green-400 text-xs">✓</span> {f}
+                    <li key={j} className="flex items-center gap-3 text-xs text-white/35 font-light">
+                      <div className="w-1 h-1 rounded-full bg-white/20 shrink-0" />
+                      {f}
                     </li>
                   ))}
                 </ul>
-                <Link
-                  href={plan.href}
-                  className={`block text-center py-3 rounded-xl text-sm font-semibold transition-all ${
-                    plan.highlight
-                      ? 'bg-purple-600 hover:bg-purple-500 text-white'
-                      : 'bg-white/8 hover:bg-white/15 text-white border border-white/10'
-                  }`}
-                >
+                <Link href={plan.href}
+                  className={`text-xs ${plan.accent} border border-white/8 hover:border-white/20 px-5 py-3 rounded-full text-center transition-all duration-300 hover-lift`}>
                   {plan.cta}
                 </Link>
               </div>
@@ -578,54 +451,63 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── CTA ── */}
-      <section className="py-32 px-6">
-        <div ref={s5.ref} className={`max-w-3xl mx-auto text-center fade-up ${s5.visible ? 'visible' : ''}`}>
-          <p className="text-gray-600 text-sm mb-6 uppercase tracking-widest font-semibold">Construim acum</p>
-          <h2 className="font-display text-5xl md:text-6xl font-800 leading-tight mb-6">
-            Copiii cu ADHD nu au<br />
-            nevoie de mai multă disciplină.<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
-              Au nevoie de un sistem<br />care îi înțelege.
-            </span>
-          </h2>
-          <p className="text-gray-500 mb-10 text-lg">
-            Wisp + Flow este acel sistem.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/wisp"
-              className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-2xl text-base font-semibold transition-all glow-indigo"
-            >
-              <MiniRobot size={22} /> Wisp pentru copilul tău
-            </Link>
-            <Link
-              href="/flow"
-              className="flex items-center justify-center gap-2 bg-purple-700/50 hover:bg-purple-600/60 border border-purple-500/40 text-white px-8 py-4 rounded-2xl text-base font-semibold transition-all"
-            >
-              <FlowIcon size={22} /> Flow pentru tine
-            </Link>
+      <hr className="fancy max-w-6xl mx-auto" />
+
+      {/* ══════════════════════════════════════
+          CTA FINAL
+      ══════════════════════════════════════ */}
+      <section className="py-40 px-8 max-w-6xl mx-auto">
+        <div ref={s6.ref} className={`reveal ${s6.visible ? 'in' : ''}`}>
+          <div className="max-w-4xl">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-6 h-px bg-white/20" />
+              <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">Construim acum</span>
+            </div>
+            <h2 className="serif text-[clamp(3rem,8vw,7rem)] leading-[0.92] tracking-tight text-white/90 mb-12">
+              Copiii cu ADHD<br />
+              nu au nevoie de<br />
+              mai multă disciplină.<br />
+              <span className="serif-italic text-white/30">Au nevoie de un<br />sistem care îi înțelege.</span>
+            </h2>
+            <div className="flex flex-col sm:flex-row items-start gap-4">
+              <Link href="/wisp"
+                className="group flex items-center gap-3 bg-white text-black text-sm font-medium px-8 py-4 rounded-full hover:bg-white/90 transition-all duration-300 hover-lift">
+                Wisp pentru copilul tău
+                <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
+              </Link>
+              <Link href="/flow"
+                className="group flex items-center gap-3 border border-white/10 hover:border-white/25 text-white/50 hover:text-white text-sm px-8 py-4 rounded-full transition-all duration-300">
+                Flow pentru tine
+                <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
+              </Link>
+              <Link href="/wisp-teen"
+                className="group flex items-center gap-3 border border-white/10 hover:border-white/25 text-white/50 hover:text-white text-sm px-8 py-4 rounded-full transition-all duration-300">
+                Wisp Teen
+                <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-white/5 py-10 px-6">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold">W</div>
-            <span className="font-display font-800 text-sm">Wisp<span className="text-purple-400">+</span>Flow</span>
+      <footer className="border-t border-white/[0.04] py-12 px-8">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div>
+            <p className="text-white/50 text-sm font-medium mb-1">Wisp+Flow</p>
+            <p className="text-white/15 text-xs font-light">
+              Construit pentru minți care funcționează altfel. © 2026
+            </p>
           </div>
-          <p className="text-gray-700 text-xs">
-            © 2026 Wisp+Flow. Construit cu ❤️ pentru minți care funcționează altfel.
-          </p>
-          <div className="flex items-center gap-6 text-xs text-gray-700">
-            <Link href="/wisp" className="hover:text-gray-400 transition-colors">Wisp</Link>
-            <Link href="/flow" className="hover:text-gray-400 transition-colors">Flow</Link>
-            <a href="mailto:hello@wispflow.ai" className="hover:text-gray-400 transition-colors">Contact</a>
+          <div className="flex items-center gap-8 text-xs text-white/20 font-light">
+            <Link href="/wisp" className="hover:text-white/50 transition-colors">Wisp Junior</Link>
+            <Link href="/wisp-teen" className="hover:text-white/50 transition-colors">Wisp Teen</Link>
+            <Link href="/flow" className="hover:text-white/50 transition-colors">Flow</Link>
+            <a href="mailto:hello@wispflow.ai" className="hover:text-white/50 transition-colors">Contact</a>
           </div>
         </div>
       </footer>
+
     </div>
   )
 }
