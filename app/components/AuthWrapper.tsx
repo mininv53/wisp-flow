@@ -61,7 +61,6 @@ export default function AuthWrapper({ children }: Props) {
             {view === 'login' ? 'Bine ai revenit' : 'Creează cont nou'}
           </p>
         </div>
-
         <div className="space-y-3">
           <input
             type="email"
@@ -79,13 +78,11 @@ export default function AuthWrapper({ children }: Props) {
             className="w-full bg-gray-900 text-white text-sm px-4 py-3 rounded-xl border border-gray-800 focus:border-gray-600 focus:outline-none placeholder-gray-600"
           />
         </div>
-
         {error && (
-          <p className={`text-xs text-center ${error.includes('verifică') || error.includes('Verifică') ? 'text-green-400' : 'text-red-400'}`}>
+          <p className={`text-xs text-center ${error.includes('Verifică') ? 'text-green-400' : 'text-red-400'}`}>
             {error}
           </p>
         )}
-
         <button
           onClick={handleSubmit}
           disabled={submitting || !email || !password}
@@ -93,7 +90,6 @@ export default function AuthWrapper({ children }: Props) {
         >
           {submitting ? '...' : view === 'login' ? 'Intră în cont' : 'Creează cont'}
         </button>
-
         <p className="text-center text-xs text-gray-600">
           {view === 'login' ? 'Nu ai cont?' : 'Ai deja cont?'}{' '}
           <button
