@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Send, Timer, CheckCircle, Circle, Zap, RotateCcw, TrendingUp, Brain, Star } from 'lucide-react'
 import XPBar from './XPBar'
+import AchievementPopup from './AchievementPopup'
+import { useAchievements } from '../lib/useAchievements'
 import {
   calcXP, updateStreak, checkNewBadges, getMotivationMessage,
   analyzeStyle, buildStylePrompt,
@@ -55,6 +57,8 @@ export default function Flow({ userId }: { userId?: string }) {
   const [newBadges, setNewBadges] = useState<string[]>([])
   const [styleProfile, setStyleProfile] = useState<StyleProfile>(defaultStyle)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const { current: achievement, dismiss, checkAndShow } = useAchievements()
 
   useEffect(() => {
     const saved = localStorage.getItem('flow-messages')
@@ -129,7 +133,8 @@ export default function Flow({ userId }: { userId?: string }) {
     const sessionMinutes = Math.floor((Date.now() - sessionStartTime) / 60000)
     const completedCount = currentTasks.filter(t => t.done).length
 
-    let updated = updateStreak(motivation)
+    const prev = motivation
+    let updated = updateStreak(prev)
     const earned = calcXP(completedCount, currentMood, sessionMinutes)
     updated = {
       ...updated,
@@ -143,6 +148,8 @@ export default function Flow({ userId }: { userId?: string }) {
     setNewBadges(unlocked)
     setMotivation(updated)
     localStorage.setItem('flow-motivation', JSON.stringify(updated))
+
+    checkAndShow(prev, updated, earned, {})
 
     const newSession: Session = {
       date: new Date().toLocaleDateString('ro-RO'),
@@ -282,6 +289,9 @@ export default function Flow({ userId }: { userId?: string }) {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex font-sans">
+
+      <AchievementPopup achievement={achievement} onDone={dismiss} theme="dark" />
+
       <div className="w-72 bg-gray-900 border-r border-gray-800 flex flex-col p-4 gap-4">
         <div className="flex items-center gap-2 mb-1">
           <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
