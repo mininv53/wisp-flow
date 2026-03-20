@@ -4,6 +4,7 @@ import XPBar from './XPBar'
 import AchievementPopup from './AchievementPopup'
 import { useAchievements } from '../lib/useAchievements'
 import { calcXP, updateStreak, checkNewBadges, type MotivationState } from '../lib/motivation'
+import { speak, stopSpeaking } from '../lib/useVoice'
 
 type Mood = 'idle' | 'process' | 'focus' | 'low' | 'error' | 'boost' | 'sync'
 type VoiceMode = 'idle' | 'recording' | 'analyzing' | 'responding'
@@ -28,6 +29,28 @@ function detectMood(t: string): Mood {
   if (/cod|build|proiect|muzic|scri|dev/.test(s)) return 'focus'
   if (/mulțumesc|mișto|respect|cool|ok/.test(s)) return 'sync'
   return 'idle'
+}
+
+// typing hook — 35ms/char pentru Teen (ritm natural, conversațional)
+function useTypingText(fullText: string, active: boolean, speed = 35) {
+  const [displayed, setDisplayed] = useState('')
+  useEffect(() => {
+    if (!active || !fullText) { setDisplayed(fullText); return }
+    setDisplayed('')
+    let i = 0
+    const id = setInterval(() => {
+      i++
+      setDisplayed(fullText.slice(0, i))
+      if (i >= fullText.length) clearInterval(id)
+    }, speed)
+    return () => clearInterval(id)
+  }, [fullText, active, speed])
+  return displayed
+}
+
+function TypingMsg({ text, speed = 35, color }: { text: string; speed?: number; color: string }) {
+  const displayed = useTypingText(text, true, speed)
+  return <>{displayed}<span style={{ color, opacity: displayed.length < text.length ? 1 : 0, animation: 'blink-cur 1.4s infinite' }}>|</span></>
 }
 
 function Avatar({ mood, speaking, size=80 }: { mood:Mood; speaking:boolean; size?:number }) {
@@ -88,51 +111,24 @@ function Burst({ mood, trigger }: { mood:Mood; trigger:number }) {
 
 function ParticleField() {
   const items = useRef(Array.from({length:22},(_,i)=>({
-    id:i,
-    x: Math.random()*100,
-    y: Math.random()*100,
-    type: i%3===0?'diamond':i%3===1?'circle':'line',
-    size: 4+Math.random()*7,
-    dur: 14+Math.random()*14,
-    delay: Math.random()*10,
-    tx: (Math.random()-.5)*60,
-    ty: (Math.random()-.5)*60,
-    rot: Math.random()*90,
-    op: 0.06+Math.random()*0.1,
+    id:i, x:Math.random()*100, y:Math.random()*100,
+    type:i%3===0?'diamond':i%3===1?'circle':'line',
+    size:4+Math.random()*7, dur:14+Math.random()*14, delay:Math.random()*10,
+    tx:(Math.random()-.5)*60, ty:(Math.random()-.5)*60, rot:Math.random()*90, op:0.06+Math.random()*0.1,
   })))
   return (
     <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}>
-      {/* big soft rings in center */}
       {[220,310,400].map((sz,i)=>(
         <div key={i} style={{position:'absolute',width:sz,height:sz,borderRadius:'50%',border:'0.5px solid rgba(120,130,255,.05)',top:'50%',left:'50%',transform:'translate(-50%,-50%)',animationName:'pulse-ring',animationDuration:`${5+i*2}s`,animationTimingFunction:'ease-in-out',animationIterationCount:'infinite',animationDelay:`${i*1.2}s`}}/>
       ))}
       {items.current.map(p=>(
-        <div key={p.id} style={{
-          position:'absolute',
-          left:`${p.x}%`,
-          top:`${p.y}%`,
-          width: p.type==='line'?p.size*3:p.size,
-          height: p.type==='line'?1:p.size,
-          borderRadius: p.type==='circle'?'50%':0,
-          background: `rgba(120,130,255,${p.op})`,
-          transform: p.type==='diamond'?'rotate(45deg)':'none',
-          animationName:'particle-drift',
-          animationDuration:`${p.dur}s`,
-          animationDelay:`${p.delay}s`,
-          animationIterationCount:'infinite',
-          animationTimingFunction:'ease-in-out',
-          ['--tx' as any]:`${p.tx}px`,
-          ['--ty' as any]:`${p.ty}px`,
-          ['--rot' as any]:`${p.rot}deg`,
-        }}/>
+        <div key={p.id} style={{position:'absolute',left:`${p.x}%`,top:`${p.y}%`,width:p.type==='line'?p.size*3:p.size,height:p.type==='line'?1:p.size,borderRadius:p.type==='circle'?'50%':0,background:`rgba(120,130,255,${p.op})`,transform:p.type==='diamond'?'rotate(45deg)':'none',animationName:'particle-drift',animationDuration:`${p.dur}s`,animationDelay:`${p.delay}s`,animationIterationCount:'infinite',animationTimingFunction:'ease-in-out',['--tx' as any]:`${p.tx}px`,['--ty' as any]:`${p.ty}px`,['--rot' as any]:`${p.rot}deg`}}/>
       ))}
     </div>
   )
 }
 
-const defaultMotivation: MotivationState = {
-  xp:0,level:1,streak:0,lastActiveDate:'',graceDayUsed:false,totalSessions:0,badges:[],weeklyXP:[]
-}
+const defaultMotivation: MotivationState = {xp:0,level:1,streak:0,lastActiveDate:'',graceDayUsed:false,totalSessions:0,badges:[],weeklyXP:[]}
 
 export default function WispTeen({ userId }: { userId?: string }) {
   const [msgs, setMsgs] = useState<Msg[]>([{role:'bot',text:'Hey. Ce construim azi?',mood:'idle',ts:'acum'}])
@@ -146,6 +142,7 @@ export default function WispTeen({ userId }: { userId?: string }) {
   const [status, setStatus] = useState('')
   const [burst, setBurst] = useState(0)
   const [isListening, setIsListening] = useState(false)
+  const [typingMsgIdx, setTypingMsgIdx] = useState<number>(-1)
   const [motivation, setMotivation] = useState<MotivationState>(()=>{
     if(typeof window==='undefined') return defaultMotivation
     const s=localStorage.getItem('wisptteen-motivation')
@@ -162,7 +159,7 @@ export default function WispTeen({ userId }: { userId?: string }) {
 
   useEffect(()=>{
     return ()=>{
-      window.speechSynthesis.cancel()
+      stopSpeaking()
       try { recRef.current?.stop() } catch(e) {}
       if(avAnimRef.current) cancelAnimationFrame(avAnimRef.current)
     }
@@ -192,13 +189,11 @@ export default function WispTeen({ userId }: { userId?: string }) {
   },[motivation,checkAndShow])
 
   const wispSpeak=useCallback((text:string,m:Mood,onDone?:()=>void)=>{
-    const synth=window.speechSynthesis; synth.cancel()
-    const utt=new SpeechSynthesisUtterance(text)
-    utt.lang='ro-RO'; utt.pitch=0.95; utt.rate=1.0; utt.volume=1
-    utt.onstart=()=>{setSpeaking(true);setMood(m);setStatus('vorbesc')}
-    utt.onend=()=>{setSpeaking(false);setMood('idle');setStatus('');onDone?.()}
-    utt.onerror=()=>{setSpeaking(false);setMood('idle');setStatus('');onDone?.()}
-    synth.speak(utt)
+    speak(text,'teen',{
+      onStart:()=>{ setSpeaking(true); setMood(m); setStatus('vorbesc') },
+      onEnd:()=>{ setSpeaking(false); setMood('idle'); setStatus(''); onDone?.() },
+      onError:()=>{ setSpeaking(false); setMood('idle'); setStatus(''); onDone?.() },
+    })
   },[])
 
   const getReply=async(history:Msg[],text:string)=>{
@@ -219,7 +214,11 @@ export default function WispTeen({ userId }: { userId?: string }) {
     setMood('process'); setStatus('procesez'); setIsTyping(true)
     const reply=await getReply(msgs,text)
     setIsTyping(false)
-    setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice}])
+    setMsgs(p=>{
+      const next=[...p,{role:'bot' as const,text:reply.text,mood:reply.mood,ts:now(),isVoice}]
+      setTypingMsgIdx(next.length-1)
+      return next
+    })
     setMood(reply.mood); setBurst(b=>b+1); awardXP(1)
     wispSpeak(reply.text,reply.mood)
   }
@@ -229,13 +228,7 @@ export default function WispTeen({ userId }: { userId?: string }) {
     if(!SR){setVoText('Necesită Chrome.');return}
     voiceBuffer.current=''
     const rec=new SR(); rec.lang='ro-RO'; rec.continuous=true; rec.interimResults=true
-    rec.onresult=(e:any)=>{
-      let t=''; for(let i=e.resultIndex;i<e.results.length;i++){
-        if(e.results[i].isFinal) voiceBuffer.current+=e.results[i][0].transcript+' '
-        else t+=e.results[i][0].transcript
-      }
-      setVoText((voiceBuffer.current+t)||'...')
-    }
+    rec.onresult=(e:any)=>{ let t=''; for(let i=e.resultIndex;i<e.results.length;i++){ if(e.results[i].isFinal) voiceBuffer.current+=e.results[i][0].transcript+' '; else t+=e.results[i][0].transcript } setVoText((voiceBuffer.current+t)||'...') }
     rec.onerror=()=>{}; rec.start(); recRef.current=rec
     setVoiceMode('recording'); setVoText('...'); setMood('focus'); setIsListening(true)
   }
@@ -244,15 +237,18 @@ export default function WispTeen({ userId }: { userId?: string }) {
     try{recRef.current?.stop()}catch(e){}; setIsListening(false)
     const text=voiceBuffer.current.trim()
     if(!text){setVoiceMode('idle');setVoText('Nu am auzit nimic.');return}
-    setVoiceMode('analyzing'); setMood('process')
-    sendVoiceMsg(text)
+    setVoiceMode('analyzing'); setMood('process'); sendVoiceMsg(text)
   }
 
   const sendVoiceMsg=async(text:string)=>{
     const m=detectMood(text)
-    setMsgs(p=>[...p,{role:'user',text,mood:m,ts:now(),isVoice:true}])
+    setMsgs(p=>[...p,{role:'user' as const,text,mood:m,ts:now(),isVoice:true}])
     const reply=await getReply(msgs,text)
-    setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice:true}])
+    setMsgs(p=>{
+      const next=[...p,{role:'bot' as const,text:reply.text,mood:reply.mood,ts:now(),isVoice:true}]
+      setTypingMsgIdx(next.length-1)
+      return next
+    })
     setMood(reply.mood); setVoText(reply.text); setBurst(b=>b+1); awardXP(1)
     setVoiceMode('responding')
     wispSpeak(reply.text,reply.mood,()=>{setVoiceMode('idle');setVoText('Sunt gata.')})
@@ -264,11 +260,7 @@ export default function WispTeen({ userId }: { userId?: string }) {
     if(!SR){alert('Necesită Chrome.');return}
     const rec=new SR(); rec.lang='ro-RO'; rec.continuous=false; rec.interimResults=true
     rec.onstart=()=>{setIsListening(true);setMood('focus');setStatus('ascult')}
-    rec.onresult=(e:any)=>{
-      let t=''; for(let i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript
-      setInput(t)
-      if(e.results[e.results.length-1].isFinal){try{rec.stop()}catch(e){};setIsListening(false);setStatus('');sendMsg(t)}
-    }
+    rec.onresult=(e:any)=>{ let t=''; for(let i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript; setInput(t); if(e.results[e.results.length-1].isFinal){try{rec.stop()}catch(e){};setIsListening(false);setStatus('');sendMsg(t)} }
     rec.onerror=()=>{setIsListening(false);setStatus('')}
     rec.start(); recRef.current=rec
   }
@@ -276,7 +268,7 @@ export default function WispTeen({ userId }: { userId?: string }) {
   const handleVoBtn=()=>{
     if(voiceMode==='idle') startVoiceRec()
     else if(voiceMode==='recording') finishVoiceRec()
-    else if(voiceMode==='responding'){window.speechSynthesis.cancel();setSpeaking(false);setVoiceMode('idle');setVoText('Sunt gata.')}
+    else if(voiceMode==='responding'){stopSpeaking();setSpeaking(false);setVoiceMode('idle');setVoText('Sunt gata.')}
   }
 
   const mc = MOODS[mood].color
@@ -298,7 +290,6 @@ export default function WispTeen({ userId }: { userId?: string }) {
 
       <ParticleField/>
 
-      {/* ── HEADER ── */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',flexShrink:0,position:'relative',zIndex:3,borderBottom:'0.5px solid rgba(120,130,255,.07)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <span style={{fontSize:14,fontWeight:600,color:'rgba(180,190,255,.85)',letterSpacing:'.08em'}}>WISP</span>
@@ -309,24 +300,19 @@ export default function WispTeen({ userId }: { userId?: string }) {
             <div style={{width:4,height:4,borderRadius:'50%',background:mc,animation:status?'rpulse .7s infinite':undefined}}/>
             {status||MOODS[mood].label}
           </div>
-          <button onClick={()=>setVoiceOpen(true)} style={{padding:'4px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(120,130,255,.2)',background:'rgba(120,130,255,.07)',color:'rgba(160,170,255,.7)',cursor:'pointer'}}>
-            🎤 voice
-          </button>
+          <button onClick={()=>setVoiceOpen(true)} style={{padding:'4px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(120,130,255,.2)',background:'rgba(120,130,255,.07)',color:'rgba(160,170,255,.7)',cursor:'pointer'}}>🎤 voice</button>
         </div>
       </div>
 
-      {/* ── XP BAR ── */}
       <div style={{padding:'8px 18px 0',flexShrink:0,position:'relative',zIndex:3}}>
         <XPBar state={motivation} newBadges={newBadges}/>
       </div>
 
-      {/* ── AVATAR centrat ── */}
       <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'18px 0 10px',flexShrink:0,position:'relative',zIndex:2}}>
         <div style={{position:'relative',transform:`translateY(${avY}px)`,transition:'transform .05s linear'}}>
           {speaking&&[100,130].map((sz,i)=>(
             <div key={i} style={{position:'absolute',width:sz,height:sz,top:'50%',left:'50%',borderRadius:'50%',border:`0.5px solid ${mc}`,opacity:.4-i*.15,animationName:'ring-out',animationDuration:`${1.3+i*.3}s`,animationTimingFunction:'ease-out',animationIterationCount:'infinite',animationDelay:`${i*.2}s`}}/>
           ))}
-          {/* soft idle rings */}
           {!speaking&&[90,115].map((sz,i)=>(
             <div key={i} style={{position:'absolute',width:sz,height:sz,top:'50%',left:'50%',borderRadius:'50%',border:'0.5px solid rgba(120,130,255,.08)',animationName:'breathe',animationDuration:`${3+i}s`,animationTimingFunction:'ease-in-out',animationIterationCount:'infinite',animationDelay:`${i*.6}s`}}/>
           ))}
@@ -342,37 +328,17 @@ export default function WispTeen({ userId }: { userId?: string }) {
 
       <div style={{height:'0.5px',background:'rgba(120,130,255,.05)',margin:'0 20px',flexShrink:0}}/>
 
-      {/* ── CHAT ── */}
       <div ref={chatRef} style={{flex:1,overflowY:'auto',padding:'12px 18px',display:'flex',flexDirection:'column',gap:6,position:'relative',zIndex:1}}>
         {msgs.map((m,i)=>(
           <div key={i} style={{maxWidth:'84%',alignSelf:m.role==='user'?'flex-end':'flex-start'}}>
-            {m.role==='bot'&&(
-              <div style={{fontSize:9,color:'rgba(120,130,255,.2)',marginBottom:3,letterSpacing:'.04em'}}>
-                WISP · {m.ts}{m.isVoice?' · 🎤':''}
-              </div>
-            )}
-            <div style={{
-              padding:'8px 13px',
-              borderRadius:12,
-              fontSize:13,
-              lineHeight:1.6,
-              color:m.role==='bot'?'rgba(255,255,255,.78)':'rgba(255,255,255,.88)',
-              background:m.role==='bot'?'rgba(120,130,255,.08)':'rgba(120,130,255,.14)',
-              border:`0.5px solid rgba(120,130,255,${m.role==='bot'?.1:.18})`,
-              borderBottomLeftRadius:m.role==='bot'?2:12,
-              borderBottomRightRadius:m.role==='user'?2:12,
-              fontStyle:m.isVoice?'italic':'normal',
-              animationName:m.role==='bot'?'msg-in':'msg-in-r',
-              animationDuration:'.25s',
-              animationTimingFunction:'ease-out',
-            }}>
-              {m.isVoice&&m.role==='user'?`🎤 "${m.text}"`:m.text}
+            {m.role==='bot'&&<div style={{fontSize:9,color:'rgba(120,130,255,.2)',marginBottom:3,letterSpacing:'.04em'}}>WISP · {m.ts}{m.isVoice?' · 🎤':''}</div>}
+            <div style={{padding:'8px 13px',borderRadius:12,fontSize:13,lineHeight:1.6,color:m.role==='bot'?'rgba(255,255,255,.78)':'rgba(255,255,255,.88)',background:m.role==='bot'?'rgba(120,130,255,.08)':'rgba(120,130,255,.14)',border:`0.5px solid rgba(120,130,255,${m.role==='bot'?.1:.18})`,borderBottomLeftRadius:m.role==='bot'?2:12,borderBottomRightRadius:m.role==='user'?2:12,fontStyle:m.isVoice?'italic':'normal',animationName:m.role==='bot'?'msg-in':'msg-in-r',animationDuration:'.25s',animationTimingFunction:'ease-out'}}>
+              {m.role==='bot' && i===typingMsgIdx
+  ? <TypingMsg text={m.isVoice?`🎤 "${m.text}"`:m.text} speed={35} color={mc}/>
+                : (m.isVoice&&m.role==='user'?`🎤 "${m.text}"`:m.text)
+              }
             </div>
-            {m.role==='user'&&(
-              <div style={{fontSize:9,color:'rgba(120,130,255,.18)',marginTop:2,textAlign:'right'}}>
-                {MOODS[m.mood].sym} · {m.ts}{m.isVoice?' · voice':''}
-              </div>
-            )}
+            {m.role==='user'&&<div style={{fontSize:9,color:'rgba(120,130,255,.18)',marginTop:2,textAlign:'right'}}>{MOODS[m.mood].sym} · {m.ts}{m.isVoice?' · voice':''}</div>}
           </div>
         ))}
         {isTyping&&(
@@ -385,7 +351,6 @@ export default function WispTeen({ userId }: { userId?: string }) {
         )}
       </div>
 
-      {/* ── INPUT ── */}
       <div style={{padding:'8px 18px 18px',flexShrink:0,position:'relative',zIndex:3}}>
         <div style={{height:'0.5px',background:'rgba(120,130,255,.06)',marginBottom:10}}/>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -395,12 +360,10 @@ export default function WispTeen({ userId }: { userId?: string }) {
         </div>
       </div>
 
-      {/* ── VOICE OVERLAY ── */}
       {voiceOpen&&(
         <div style={{position:'absolute',inset:0,background:'#05050d',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:22,zIndex:100,animationName:'msg-in',animationDuration:'.4s',animationTimingFunction:'ease-out'}}>
           <ParticleField/>
-          <button onClick={()=>{setVoiceOpen(false);window.speechSynthesis.cancel();try{recRef.current?.stop()}catch(e){};setVoiceMode('idle');setSpeaking(false);setIsListening(false);setMood('idle')}} style={{position:'absolute',top:18,right:18,background:'none',border:'none',color:'rgba(120,130,255,.25)',fontSize:18,cursor:'pointer',zIndex:1}}>✕</button>
-
+          <button onClick={()=>{setVoiceOpen(false);stopSpeaking();try{recRef.current?.stop()}catch(e){};setVoiceMode('idle');setSpeaking(false);setIsListening(false);setMood('idle')}} style={{position:'absolute',top:18,right:18,background:'none',border:'none',color:'rgba(120,130,255,.25)',fontSize:18,cursor:'pointer',zIndex:1}}>✕</button>
           <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1}}>
             {[110,145,180].map((sz,i)=>(
               <div key={i} style={{position:'absolute',width:sz,height:sz,top:'50%',left:'50%',borderRadius:'50%',border:`0.5px solid rgba(120,130,255,${speaking?.2-.05*i:.08-.02*i})`,animationName:speaking?'rpulse':'breathe',animationDuration:`${speaking?.7+i*.2:3+i}s`,animationTimingFunction:'ease-in-out',animationIterationCount:'infinite',animationDelay:`${i*.2}s`}}/>
@@ -410,25 +373,15 @@ export default function WispTeen({ userId }: { userId?: string }) {
               <Burst mood={mood} trigger={burst}/>
             </div>
           </div>
-
           <div style={{textAlign:'center',zIndex:1}}>
             <div style={{fontSize:16,fontWeight:400,color:'rgba(180,190,255,.8)',letterSpacing:'.14em'}}>WISP</div>
-            <div style={{fontSize:10,color:'rgba(120,130,255,.3)',marginTop:3,letterSpacing:'.08em'}}>
-              {voiceMode==='idle'?'':voiceMode==='recording'?'ascult':voiceMode==='analyzing'?'procesez':'răspund'}
-            </div>
+            <div style={{fontSize:10,color:'rgba(120,130,255,.3)',marginTop:3,letterSpacing:'.08em'}}>{voiceMode==='idle'?'':voiceMode==='recording'?'ascult':voiceMode==='analyzing'?'procesez':'răspund'}</div>
           </div>
-
-          <div style={{maxWidth:240,textAlign:'center',fontSize:14,color:'rgba(255,255,255,.5)',minHeight:44,lineHeight:1.75,padding:'10px 18px',background:'rgba(120,130,255,.06)',borderRadius:12,border:'0.5px solid rgba(120,130,255,.1)',fontStyle:voiceMode==='recording'?'italic':'normal',zIndex:1}}>
-            {voText}
-          </div>
-
+          <div style={{maxWidth:240,textAlign:'center',fontSize:14,color:'rgba(255,255,255,.5)',minHeight:44,lineHeight:1.75,padding:'10px 18px',background:'rgba(120,130,255,.06)',borderRadius:12,border:'0.5px solid rgba(120,130,255,.1)',fontStyle:voiceMode==='recording'?'italic':'normal',zIndex:1}}>{voText}</div>
           <button onClick={handleVoBtn} style={{width:62,height:62,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,cursor:'pointer',border:`0.5px solid rgba(120,130,255,${voiceMode==='recording'?.15:voiceMode==='responding'?.25:.08})`,background:voiceMode==='recording'?'rgba(220,100,100,.06)':voiceMode==='responding'?'rgba(120,130,255,.08)':'transparent',animation:voiceMode==='recording'?'rpulse .8s infinite':undefined,transition:'all .3s',color:voiceMode==='recording'?'rgba(220,130,130,.7)':'rgba(160,170,255,.5)',zIndex:1}}>
             {voiceMode==='idle'?'○':voiceMode==='recording'?'◼':voiceMode==='analyzing'?'◐':'◎'}
           </button>
-
-          <div style={{fontSize:10,color:'rgba(120,130,255,.2)',letterSpacing:'.04em',zIndex:1}}>
-            {voiceMode==='idle'?'apasă ○ pentru a vorbi':voiceMode==='recording'?'apasă ◼ când termini':voiceMode==='responding'?'apasă ◎ pentru a continua':''}
-          </div>
+          <div style={{fontSize:10,color:'rgba(120,130,255,.2)',letterSpacing:'.04em',zIndex:1}}>{voiceMode==='idle'?'apasă ○ pentru a vorbi':voiceMode==='recording'?'apasă ◼ când termini':voiceMode==='responding'?'apasă ◎ pentru a continua':''}</div>
         </div>
       )}
 

@@ -4,6 +4,7 @@ import XPBar from './XPBar'
 import AchievementPopup from './AchievementPopup'
 import { useAchievements } from '../lib/useAchievements'
 import { calcXP, updateStreak, checkNewBadges, getMotivationMessage, type MotivationState } from '../lib/motivation'
+import { speak, stopSpeaking } from '../lib/useVoice'
 
 type Mood = 'happy' | 'excited' | 'think' | 'sleepy' | 'sad' | 'laugh' | 'love'
 type VoiceMode = 'idle' | 'recording' | 'analyzing' | 'responding'
@@ -30,7 +31,29 @@ function detectMood(t: string): Mood {
   return 'happy'
 }
 
-// ── AVATAR — calm Flow style ──
+// typing hook — lent, 55ms/char pentru Flow
+function useTypingText(fullText: string, active: boolean, speed = 55) {
+  const [displayed, setDisplayed] = useState('')
+  const [done, setDone] = useState(false)
+  useEffect(() => {
+    if (!active || !fullText) { setDisplayed(fullText); setDone(true); return }
+    setDisplayed(''); setDone(false)
+    let i = 0
+    const id = setInterval(() => {
+      i++
+      setDisplayed(fullText.slice(0, i))
+      if (i >= fullText.length) { clearInterval(id); setDone(true) }
+    }, speed)
+    return () => clearInterval(id)
+  }, [fullText, active, speed])
+  return { displayed, done }
+}
+
+function TypingMsg({ text, speed = 55 }: { text: string; speed?: number }) {
+  const { displayed } = useTypingText(text, true, speed)
+  return <>{displayed}<span style={{ opacity: displayed.length < text.length ? 1 : 0, transition: 'opacity .2s' }}>▌</span></>
+}
+
 function Avatar({ mood, speaking, size=80 }: { mood:Mood; speaking:boolean; size?:number }) {
   const eyeRy = mood==='sleepy'?2.5:mood==='excited'?6.5:5.5
   const browTL = mood==='think'?'rotate(-4 30 27)':mood==='sad'?'rotate(6 30 27)':mood==='excited'?'translate(0,-3)':mood==='sleepy'?'translate(0,4)':''
@@ -85,45 +108,18 @@ function Burst({ mood, trigger }: { mood:Mood; trigger:number }) {
   )
 }
 
-// ── STAR — background particle ──
 function StarField() {
-  const stars = useRef(
-    Array.from({length:40},(_,i)=>({
-      id:i,
-      x:Math.random()*100,
-      y:Math.random()*100,
-      size:Math.random()*2+0.5,
-      dur:3+Math.random()*6,
-      delay:Math.random()*6,
-      drift: (Math.random()-.5)*20,
-    }))
-  )
+  const stars = useRef(Array.from({length:40},(_,i)=>({id:i,x:Math.random()*100,y:Math.random()*100,size:Math.random()*2+0.5,dur:3+Math.random()*6,delay:Math.random()*6,drift:(Math.random()-.5)*20})))
   return (
     <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}>
       {stars.current.map(s=>(
-        <div key={s.id} style={{
-          position:'absolute',
-          left:`${s.x}%`,
-          top:`${s.y}%`,
-          width:s.size,
-          height:s.size,
-          borderRadius:'50%',
-          background:'rgba(255,255,255,.6)',
-          animationName:'star-fly',
-          animationDuration:`${s.dur}s`,
-          animationDelay:`${s.delay}s`,
-          animationIterationCount:'infinite',
-          animationTimingFunction:'ease-in-out',
-          ['--drift' as any]:`${s.drift}px`,
-        }}/>
+        <div key={s.id} style={{position:'absolute',left:`${s.x}%`,top:`${s.y}%`,width:s.size,height:s.size,borderRadius:'50%',background:'rgba(255,255,255,.6)',animationName:'star-fly',animationDuration:`${s.dur}s`,animationDelay:`${s.delay}s`,animationIterationCount:'infinite',animationTimingFunction:'ease-in-out',['--drift' as any]:`${s.drift}px`}}/>
       ))}
     </div>
   )
 }
 
-const defaultMotivation: MotivationState = {
-  xp:0,level:1,streak:0,lastActiveDate:'',graceDayUsed:false,totalSessions:0,badges:[],weeklyXP:[]
-}
+const defaultMotivation: MotivationState = {xp:0,level:1,streak:0,lastActiveDate:'',graceDayUsed:false,totalSessions:0,badges:[],weeklyXP:[]}
 
 export default function Flow({ userId }: { userId?: string }) {
   const [msgs,setMsgs]=useState<Msg[]>([{role:'bot',text:'Bună. Cum te simți azi? Un cuvânt e suficient.',mood:'happy',ts:'acum'}])
@@ -151,65 +147,37 @@ export default function Flow({ userId }: { userId?: string }) {
   const voiceBuffer=useRef('')
   const recRef=useRef<any>(null)
   const sessionStart=useRef(Date.now())
+  // track which bot msg indices are "new" (should animate typing)
+  const [typingMsgIdx,setTypingMsgIdx]=useState<number>(-1)
 
-  // voice leak fix
-  useEffect(()=>{
-    return ()=>{
-      window.speechSynthesis.cancel()
-      try { recRef.current?.stop() } catch(e) {}
-    }
-  },[])
+  useEffect(()=>{ return ()=>{ stopSpeaking(); try { recRef.current?.stop() } catch(e) {} } },[])
+  useEffect(()=>{ const saved=localStorage.getItem('flow-tasks'); if(saved) setTasks(JSON.parse(saved)) },[])
+  useEffect(()=>{ if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight },[msgs,isTyping])
 
-  useEffect(()=>{
-    const saved=localStorage.getItem('flow-tasks')
-    if(saved) setTasks(JSON.parse(saved))
-  },[])
-
-  useEffect(()=>{if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight},[msgs,isTyping])
-
-  const saveTasks = (t: Task[]) => {
-    setTasks(t)
-    localStorage.setItem('flow-tasks', JSON.stringify(t))
-  }
-
-  const addTask = () => {
-    if(!newTask.trim()) return
-    saveTasks([...tasks,{id:Date.now(),text:newTask.trim(),done:false}])
-    setNewTask('')
-  }
-
-  const toggleTask = (id: number) => {
-    const updated = tasks.map(t=>t.id===id?{...t,done:!t.done}:t)
-    saveTasks(updated)
-    const justDone = updated.find(t=>t.id===id&&t.done)
-    if(justDone) awardXP(1)
-  }
-
-  const removeTask = (id: number) => saveTasks(tasks.filter(t=>t.id!==id))
-
+  const saveTasks=(t:Task[])=>{ setTasks(t); localStorage.setItem('flow-tasks',JSON.stringify(t)) }
+  const addTask=()=>{ if(!newTask.trim()) return; saveTasks([...tasks,{id:Date.now(),text:newTask.trim(),done:false}]); setNewTask('') }
+  const toggleTask=(id:number)=>{ const u=tasks.map(t=>t.id===id?{...t,done:!t.done}:t); saveTasks(u); if(u.find(t=>t.id===id&&t.done)) awardXP(1) }
+  const removeTask=(id:number)=>saveTasks(tasks.filter(t=>t.id!==id))
   const now=()=>new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
 
-  const awardXP = useCallback((count: number) => {
-    const mins = Math.floor((Date.now()-sessionStart.current)/60000)
-    const earned = calcXP(count,'😊',mins)
-    let updated = updateStreak(motivation)
-    updated = {...updated, xp:updated.xp+earned, totalSessions:updated.totalSessions+1, weeklyXP:[...(updated.weeklyXP||[]).slice(-6),earned]}
-    const unlocked = checkNewBadges(updated)
-    updated.badges = [...updated.badges,...unlocked]
-    setNewBadges(unlocked)
-    setMotivation(updated)
+  const awardXP=useCallback((count:number)=>{
+    const mins=Math.floor((Date.now()-sessionStart.current)/60000)
+    const earned=calcXP(count,'😊',mins)
+    let updated=updateStreak(motivation)
+    updated={...updated,xp:updated.xp+earned,totalSessions:updated.totalSessions+1,weeklyXP:[...(updated.weeklyXP||[]).slice(-6),earned]}
+    const unlocked=checkNewBadges(updated)
+    updated.badges=[...updated.badges,...unlocked]
+    setNewBadges(unlocked); setMotivation(updated)
     localStorage.setItem('flow-motivation',JSON.stringify(updated))
     checkAndShow(motivation,updated,earned,{})
   },[motivation,checkAndShow])
 
   const wispSpeak=useCallback((text:string,m:Mood,onDone?:()=>void)=>{
-    const synth=window.speechSynthesis; synth.cancel()
-    const utt=new SpeechSynthesisUtterance(text)
-    utt.lang='ro-RO'; utt.pitch=0.85; utt.rate=0.9; utt.volume=1
-    utt.onstart=()=>{setSpeaking(true);setMood(m);setStatus('vorbesc')}
-    utt.onend=()=>{setSpeaking(false);setMood('happy');setStatus('');onDone?.()}
-    utt.onerror=()=>{setSpeaking(false);setMood('happy');setStatus('');onDone?.()}
-    synth.speak(utt)
+    speak(text,'flow',{
+      onStart:()=>{ setSpeaking(true); setMood(m); setStatus('vorbesc') },
+      onEnd:()=>{ setSpeaking(false); setMood('happy'); setStatus(''); onDone?.() },
+      onError:()=>{ setSpeaking(false); setMood('happy'); setStatus(''); onDone?.() },
+    })
   },[])
 
   const getReply=async(history:Msg[],text:string)=>{
@@ -230,9 +198,12 @@ export default function Flow({ userId }: { userId?: string }) {
     setMood('think'); setStatus('procesez'); setIsTyping(true)
     const reply=await getReply(msgs,text)
     setIsTyping(false)
-    setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice}])
-    setMood(reply.mood); setBurst(b=>b+1)
-    awardXP(1)
+    setMsgs(p=>{
+      const next=[...p,{role:'bot' as const,text:reply.text,mood:reply.mood,ts:now(),isVoice}]
+      setTypingMsgIdx(next.length-1)
+      return next
+    })
+    setMood(reply.mood); setBurst(b=>b+1); awardXP(1)
     wispSpeak(reply.text,reply.mood)
   }
 
@@ -241,13 +212,7 @@ export default function Flow({ userId }: { userId?: string }) {
     if(!SR){setVoText('Necesită Chrome.');return}
     voiceBuffer.current=''
     const rec=new SR(); rec.lang='ro-RO'; rec.continuous=true; rec.interimResults=true
-    rec.onresult=(e:any)=>{
-      let t=''; for(let i=e.resultIndex;i<e.results.length;i++){
-        if(e.results[i].isFinal) voiceBuffer.current+=e.results[i][0].transcript+' '
-        else t+=e.results[i][0].transcript
-      }
-      setVoText((voiceBuffer.current+t)||'...')
-    }
+    rec.onresult=(e:any)=>{ let t=''; for(let i=e.resultIndex;i<e.results.length;i++){ if(e.results[i].isFinal) voiceBuffer.current+=e.results[i][0].transcript+' '; else t+=e.results[i][0].transcript } setVoText((voiceBuffer.current+t)||'...') }
     rec.onerror=()=>{}; rec.start(); recRef.current=rec
     setVoiceMode('recording'); setVoText('...'); setMood('think'); setIsListening(true)
   }
@@ -256,17 +221,19 @@ export default function Flow({ userId }: { userId?: string }) {
     try{recRef.current?.stop()}catch(e){}; setIsListening(false)
     const text=voiceBuffer.current.trim()
     if(!text){setVoiceMode('idle');setVoText('Nu am detectat nimic.');return}
-    setVoiceMode('analyzing'); setMood('think')
-    sendVoiceMsg(text)
+    setVoiceMode('analyzing'); setMood('think'); sendVoiceMsg(text)
   }
 
   const sendVoiceMsg=async(text:string)=>{
     const m=detectMood(text)
-    setMsgs(p=>[...p,{role:'user',text,mood:m,ts:now(),isVoice:true}])
+    setMsgs(p=>[...p,{role:'user' as const,text,mood:m,ts:now(),isVoice:true}])
     const reply=await getReply(msgs,text)
-    setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice:true}])
-    setMood(reply.mood); setVoText(reply.text); setBurst(b=>b+1)
-    awardXP(1)
+    setMsgs(p=>{
+      const next=[...p,{role:'bot' as const,text:reply.text,mood:reply.mood,ts:now(),isVoice:true}]
+      setTypingMsgIdx(next.length-1)
+      return next
+    })
+    setMood(reply.mood); setVoText(reply.text); setBurst(b=>b+1); awardXP(1)
     setVoiceMode('responding')
     wispSpeak(reply.text,reply.mood,()=>{setVoiceMode('idle');setVoText('Sunt gata.')})
   }
@@ -277,11 +244,7 @@ export default function Flow({ userId }: { userId?: string }) {
     if(!SR){alert('Necesită Chrome.');return}
     const rec=new SR(); rec.lang='ro-RO'; rec.continuous=false; rec.interimResults=true
     rec.onstart=()=>{setIsListening(true);setMood('think');setStatus('ascult')}
-    rec.onresult=(e:any)=>{
-      let t=''; for(let i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript
-      setInput(t)
-      if(e.results[e.results.length-1].isFinal){try{rec.stop()}catch(e){};setIsListening(false);setStatus('');sendMsg(t)}
-    }
+    rec.onresult=(e:any)=>{ let t=''; for(let i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript; setInput(t); if(e.results[e.results.length-1].isFinal){try{rec.stop()}catch(e){};setIsListening(false);setStatus('');sendMsg(t)} }
     rec.onerror=()=>{setIsListening(false);setStatus('')}
     rec.start(); recRef.current=rec
   }
@@ -289,52 +252,46 @@ export default function Flow({ userId }: { userId?: string }) {
   const handleVoBtn=()=>{
     if(voiceMode==='idle') startVoiceRec()
     else if(voiceMode==='recording') finishVoiceRec()
-    else if(voiceMode==='responding'){window.speechSynthesis.cancel();setSpeaking(false);setVoiceMode('idle');setVoText('Sunt gata.')}
+    else if(voiceMode==='responding'){stopSpeaking();setSpeaking(false);setVoiceMode('idle');setVoText('Sunt gata.')}
   }
 
-  const doneTasks = tasks.filter(t=>t.done).length
-  const totalTasks = tasks.length
-  const progressPct = totalTasks>0 ? Math.round(doneTasks/totalTasks*100) : 0
+  const doneTasks=tasks.filter(t=>t.done).length
+  const totalTasks=tasks.length
+  const progressPct=totalTasks>0?Math.round(doneTasks/totalTasks*100):0
 
   return (
     <div style={{minHeight:'100vh',background:'#060608',display:'flex',flexDirection:'column',fontFamily:'"Georgia",serif',position:'relative',overflow:'hidden',color:'rgba(255,255,255,.8)'}}>
       <style>{`
         @keyframes burst{0%{opacity:.6;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(.2) rotate(var(--rot))}}
         @keyframes msg-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes breathe{0%,100%{opacity:.15;transform:scale(1) translate(0,0)}50%{opacity:.35;transform:scale(1.04) translate(var(--drift),calc(var(--drift)*-.5))}}
+        @keyframes breathe{0%,100%{opacity:.15;transform:scale(1)}50%{opacity:.35;transform:scale(1.04)}}
         @keyframes star-fly{0%{opacity:0;transform:translate(0,0) scale(0)}15%{opacity:.6}85%{opacity:.3}100%{opacity:0;transform:translate(var(--drift),calc(var(--drift)*-1.5)) scale(1)}}
         @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-3px)}}
         @keyframes rpulse{0%,100%{opacity:1}50%{opacity:.3}}
         @keyframes ring{0%{opacity:.3;transform:scale(1)}100%{opacity:0;transform:scale(1.4)}}
         @keyframes float-av{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+        @keyframes cursor-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
       `}</style>
 
-      {/* star field background */}
       <StarField/>
 
-      {/* ── TOP: XP bar ── */}
       <div style={{padding:'14px 20px 0',flexShrink:0,position:'relative',zIndex:2}}>
         <XPBar state={motivation} newBadges={newBadges}/>
       </div>
 
-      {/* ── TASKS PANEL ── */}
       <div style={{margin:'12px 20px 0',flexShrink:0,position:'relative',zIndex:2}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{fontSize:11,color:'rgba(255,255,255,.3)',letterSpacing:'.1em',fontFamily:'system-ui'}}>TASKURI</span>
             {totalTasks>0&&<span style={{fontSize:10,color:'rgba(255,255,255,.2)',fontFamily:'system-ui'}}>{doneTasks}/{totalTasks} · {progressPct}%</span>}
           </div>
-          <button onClick={()=>setShowTasks(v=>!v)} style={{background:'none',border:'none',color:'rgba(255,255,255,.2)',fontSize:12,cursor:'pointer',fontFamily:'system-ui'}}>
-            {showTasks?'−':'+'}
-          </button>
+          <button onClick={()=>setShowTasks(v=>!v)} style={{background:'none',border:'none',color:'rgba(255,255,255,.2)',fontSize:12,cursor:'pointer',fontFamily:'system-ui'}}>{showTasks?'−':'+'}</button>
         </div>
-
         {totalTasks>0&&(
           <div style={{height:1,background:'rgba(255,255,255,.06)',marginBottom:8,position:'relative'}}>
             <div style={{position:'absolute',left:0,top:0,height:'100%',background:'rgba(255,255,255,.25)',width:`${progressPct}%`,transition:'width .4s ease'}}/>
           </div>
         )}
-
         {showTasks&&(
           <>
             <div style={{display:'flex',gap:6,marginBottom:8}}>
@@ -344,12 +301,8 @@ export default function Flow({ userId }: { userId?: string }) {
             <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:140,overflowY:'auto'}}>
               {tasks.map(t=>(
                 <div key={t.id} style={{display:'flex',alignItems:'center',gap:8,animation:'msg-in .2s ease-out'}}>
-                  <button onClick={()=>toggleTask(t.id)} style={{width:14,height:14,borderRadius:'50%',border:`0.5px solid ${t.done?'rgba(255,255,255,.4)':'rgba(255,255,255,.2)'}`,background:t.done?'rgba(255,255,255,.15)':'transparent',cursor:'pointer',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:'rgba(255,255,255,.6)'}}>
-                    {t.done?'✓':''}
-                  </button>
-                  <span style={{flex:1,fontSize:12,color:t.done?'rgba(255,255,255,.25)':'rgba(255,255,255,.65)',textDecoration:t.done?'line-through':'none',fontFamily:'Georgia,serif',lineHeight:1.4}}>
-                    {t.text}
-                  </span>
+                  <button onClick={()=>toggleTask(t.id)} style={{width:14,height:14,borderRadius:'50%',border:`0.5px solid ${t.done?'rgba(255,255,255,.4)':'rgba(255,255,255,.2)'}`,background:t.done?'rgba(255,255,255,.15)':'transparent',cursor:'pointer',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:'rgba(255,255,255,.6)'}}>{t.done?'✓':''}</button>
+                  <span style={{flex:1,fontSize:12,color:t.done?'rgba(255,255,255,.25)':'rgba(255,255,255,.65)',textDecoration:t.done?'line-through':'none',fontFamily:'Georgia,serif',lineHeight:1.4}}>{t.text}</span>
                   <button onClick={()=>removeTask(t.id)} style={{background:'none',border:'none',color:'rgba(255,255,255,.1)',fontSize:11,cursor:'pointer',padding:0}}>×</button>
                 </div>
               ))}
@@ -357,11 +310,9 @@ export default function Flow({ userId }: { userId?: string }) {
             </div>
           </>
         )}
-
         <div style={{height:'0.5px',background:'rgba(255,255,255,.05)',marginTop:12}}/>
       </div>
 
-      {/* ── AVATAR — centrat, animat ── */}
       <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'16px 0 8px',flexShrink:0,position:'relative',zIndex:2}}>
         <div style={{position:'relative',animation:'float-av 4s ease-in-out infinite'}}>
           {speaking&&<div style={{position:'absolute',inset:-8,borderRadius:'50%',border:'1px solid rgba(180,178,169,.3)',animation:'ring 1.5s ease-out infinite'}}/>}
@@ -370,9 +321,7 @@ export default function Flow({ userId }: { userId?: string }) {
           <Burst mood={mood} trigger={burst}/>
         </div>
         <div style={{marginTop:6,textAlign:'center'}}>
-          <div style={{fontSize:12,fontWeight:400,color:'rgba(200,198,191,.6)',letterSpacing:'.14em',fontFamily:'system-ui'}}>
-            {MOODS[mood].sym} FLOW
-          </div>
+          <div style={{fontSize:12,fontWeight:400,color:'rgba(200,198,191,.6)',letterSpacing:'.14em',fontFamily:'system-ui'}}>{MOODS[mood].sym} FLOW</div>
           {status&&<div style={{fontSize:10,color:'rgba(255,255,255,.2)',marginTop:1,fontFamily:'system-ui'}}>{status}</div>}
           {!status&&<div style={{fontSize:10,color:'rgba(255,255,255,.15)',marginTop:1,fontFamily:'system-ui'}}>{MOODS[mood].label}</div>}
         </div>
@@ -380,21 +329,17 @@ export default function Flow({ userId }: { userId?: string }) {
 
       <div style={{height:'0.5px',background:'rgba(255,255,255,.04)',margin:'0 20px',flexShrink:0}}/>
 
-      {/* ── CHAT — jos ── */}
       <div ref={chatRef} style={{flex:1,overflowY:'auto',padding:'12px 20px',display:'flex',flexDirection:'column',gap:10,position:'relative',zIndex:1}}>
         {msgs.map((m,i)=>(
           <div key={i} style={{animation:'msg-in .3s ease-out',maxWidth:m.role==='user'?'75%':'90%',alignSelf:m.role==='user'?'flex-end':'flex-start'}}>
-            {m.role==='bot'&&(
-              <div style={{fontSize:10,color:'rgba(255,255,255,.12)',marginBottom:3,fontFamily:'system-ui',letterSpacing:'.04em'}}>
-                FLOW · {m.ts}{m.isVoice?' · 🎤':''}
-              </div>
-            )}
+            {m.role==='bot'&&<div style={{fontSize:10,color:'rgba(255,255,255,.12)',marginBottom:3,fontFamily:'system-ui',letterSpacing:'.04em'}}>FLOW · {m.ts}{m.isVoice?' · 🎤':''}</div>}
             <div style={{fontSize:14,lineHeight:1.75,color:m.role==='bot'?'rgba(255,255,255,.75)':'rgba(255,255,255,.5)',fontStyle:m.isVoice?'italic':'normal',padding:m.role==='bot'?'0':'8px 14px',background:m.role==='user'?'rgba(255,255,255,.03)':'transparent',borderRadius:m.role==='user'?8:0,border:m.role==='user'?'0.5px solid rgba(255,255,255,.06)':'none'}}>
-              {m.isVoice&&m.role==='user'?`🎤 "${m.text}"`:m.text}
+              {m.role==='bot' && i===typingMsgIdx
+                ? <TypingMsg text={m.isVoice?`🎤 "${m.text}"`:m.text} speed={55}/>
+                : (m.isVoice&&m.role==='user'?`🎤 "${m.text}"`:m.text)
+              }
             </div>
-            {m.role==='user'&&(
-              <div style={{fontSize:10,color:'rgba(255,255,255,.1)',marginTop:2,textAlign:'right',fontFamily:'system-ui'}}>{m.ts}</div>
-            )}
+            {m.role==='user'&&<div style={{fontSize:10,color:'rgba(255,255,255,.1)',marginTop:2,textAlign:'right',fontFamily:'system-ui'}}>{m.ts}</div>}
           </div>
         ))}
         {isTyping&&(
@@ -405,7 +350,6 @@ export default function Flow({ userId }: { userId?: string }) {
         )}
       </div>
 
-      {/* ── INPUT ── */}
       <div style={{padding:'8px 20px 20px',position:'relative',zIndex:2}}>
         <div style={{height:'0.5px',background:'rgba(255,255,255,.05)',marginBottom:10}}/>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -416,14 +360,13 @@ export default function Flow({ userId }: { userId?: string }) {
         </div>
       </div>
 
-      {/* ── VOICE OVERLAY ── */}
       {voiceOpen&&(
         <div style={{position:'absolute',inset:0,background:'#050505',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:22,zIndex:100,animation:'msg-in .5s ease-out'}}>
           <StarField/>
-          <button onClick={()=>{setVoiceOpen(false);window.speechSynthesis.cancel();try{recRef.current?.stop()}catch(e){};setVoiceMode('idle');setSpeaking(false);setIsListening(false);setMood('happy')}} style={{position:'absolute',top:20,right:20,background:'none',border:'none',color:'rgba(255,255,255,.12)',fontSize:18,cursor:'pointer',fontFamily:'system-ui',zIndex:1}}>✕</button>
+          <button onClick={()=>{setVoiceOpen(false);stopSpeaking();try{recRef.current?.stop()}catch(e){};setVoiceMode('idle');setSpeaking(false);setIsListening(false);setMood('happy')}} style={{position:'absolute',top:20,right:20,background:'none',border:'none',color:'rgba(255,255,255,.12)',fontSize:18,cursor:'pointer',fontFamily:'system-ui',zIndex:1}}>✕</button>
           <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1}}>
             {[90,120,155].map((sz,i)=>(
-              <div key={i} style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:sz,height:sz,borderRadius:'50%',border:`0.5px solid rgba(180,178,169,${speaking?.18:.08})`,animation:`breathe ${2.5+i*.6}s ease-in-out infinite ${i*.4}s`,['--drift' as any]:'0px'}}/>
+              <div key={i} style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:sz,height:sz,borderRadius:'50%',border:`0.5px solid rgba(180,178,169,${speaking?.18:.08})`,animation:`breathe ${2.5+i*.6}s ease-in-out infinite ${i*.4}s`}}/>
             ))}
             <div style={{position:'relative',zIndex:2,animation:'float-av 4s ease-in-out infinite'}}>
               <Avatar mood={mood} speaking={speaking} size={100}/>
@@ -432,19 +375,13 @@ export default function Flow({ userId }: { userId?: string }) {
           </div>
           <div style={{textAlign:'center',zIndex:1}}>
             <div style={{fontSize:16,fontWeight:300,color:'rgba(200,198,191,.7)',letterSpacing:'.2em',fontFamily:'Georgia,serif'}}>FLOW</div>
-            <div style={{fontSize:10,color:'rgba(255,255,255,.15)',marginTop:3,fontFamily:'system-ui',letterSpacing:'.08em'}}>
-              {voiceMode==='idle'?'':voiceMode==='recording'?'ascult':voiceMode==='analyzing'?'procesez':'răspund'}
-            </div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,.15)',marginTop:3,fontFamily:'system-ui',letterSpacing:'.08em'}}>{voiceMode==='idle'?'':voiceMode==='recording'?'ascult':voiceMode==='analyzing'?'procesez':'răspund'}</div>
           </div>
-          <div style={{maxWidth:240,textAlign:'center',fontSize:14,color:'rgba(255,255,255,.5)',minHeight:44,lineHeight:1.8,fontFamily:'Georgia,serif',fontStyle:voiceMode==='recording'?'italic':'normal',zIndex:1}}>
-            {voText}
-          </div>
-          <button onClick={handleVoBtn} style={{width:60,height:60,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,cursor:'pointer',border:`0.5px solid rgba(180,178,169,${voiceMode==='recording'?.12:voiceMode==='responding'?.2:.06})`,background:voiceMode==='recording'?'rgba(224,75,74,.05)':voiceMode==='responding'?'rgba(180,178,169,.05)':'transparent',animation:voiceMode==='recording'?'breathe 1.2s infinite':undefined,transition:'all .3s',color:'rgba(200,198,191,.5)',zIndex:1,['--drift' as any]:'0px'}}>
+          <div style={{maxWidth:240,textAlign:'center',fontSize:14,color:'rgba(255,255,255,.5)',minHeight:44,lineHeight:1.8,fontFamily:'Georgia,serif',fontStyle:voiceMode==='recording'?'italic':'normal',zIndex:1}}>{voText}</div>
+          <button onClick={handleVoBtn} style={{width:60,height:60,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,cursor:'pointer',border:`0.5px solid rgba(180,178,169,${voiceMode==='recording'?.12:voiceMode==='responding'?.2:.06})`,background:voiceMode==='recording'?'rgba(224,75,74,.05)':voiceMode==='responding'?'rgba(180,178,169,.05)':'transparent',animation:voiceMode==='recording'?'breathe 1.2s infinite':undefined,transition:'all .3s',color:'rgba(200,198,191,.5)',zIndex:1}}>
             {voiceMode==='idle'?'○':voiceMode==='recording'?'◼':voiceMode==='analyzing'?'◐':'◎'}
           </button>
-          <div style={{fontSize:10,color:'rgba(255,255,255,.1)',fontFamily:'system-ui',letterSpacing:'.04em',zIndex:1}}>
-            {voiceMode==='idle'?'apasă ○ pentru a vorbi':voiceMode==='recording'?'apasă ◼ când termini':voiceMode==='responding'?'apasă ◎ pentru a continua':''}
-          </div>
+          <div style={{fontSize:10,color:'rgba(255,255,255,.1)',fontFamily:'system-ui',letterSpacing:'.04em',zIndex:1}}>{voiceMode==='idle'?'apasă ○ pentru a vorbi':voiceMode==='recording'?'apasă ◼ când termini':voiceMode==='responding'?'apasă ◎ pentru a continua':''}</div>
         </div>
       )}
 

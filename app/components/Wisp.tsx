@@ -4,6 +4,7 @@ import XPBar from './XPBar'
 import AchievementPopup from './AchievementPopup'
 import { useAchievements } from '../lib/useAchievements'
 import { calcXP, updateStreak, checkNewBadges, type MotivationState } from '../lib/motivation'
+import { speak, stopSpeaking } from '../lib/useVoice'
 
 type Mood = 'happy' | 'excited' | 'think' | 'sleepy' | 'sad' | 'laugh' | 'love'
 type VoiceMode = 'idle' | 'recording' | 'analyzing' | 'responding'
@@ -28,6 +29,28 @@ function detectMood(t: string): Mood {
   if (/haha|lol|amuzant|râd/.test(s)) return 'laugh'
   if (/iubesc|drăguț|frumos|mulțumesc/.test(s)) return 'love'
   return 'happy'
+}
+
+// typing hook — energic, 45ms/char pentru Junior
+function useTypingText(fullText: string, active: boolean, speed = 45) {
+  const [displayed, setDisplayed] = useState('')
+  useEffect(() => {
+    if (!active || !fullText) { setDisplayed(fullText); return }
+    setDisplayed('')
+    let i = 0
+    const id = setInterval(() => {
+      i++
+      setDisplayed(fullText.slice(0, i))
+      if (i >= fullText.length) clearInterval(id)
+    }, speed)
+    return () => clearInterval(id)
+  }, [fullText, active, speed])
+  return displayed
+}
+
+function TypingMsg({ text, speed = 45 }: { text: string; speed?: number }) {
+  const displayed = useTypingText(text, true, speed)
+  return <>{displayed}<span style={{ opacity: displayed.length < text.length ? 1 : 0, animation: 'cursor-blink .7s infinite' }}>▌</span></>
 }
 
 function Avatar({ mood, speaking, size=100 }: { mood:Mood; speaking:boolean; size?:number }) {
@@ -85,9 +108,7 @@ function Burst({ mood, trigger }: { mood:Mood; trigger:number }) {
   )
 }
 
-const defaultMotivation: MotivationState = {
-  xp:0,level:1,streak:0,lastActiveDate:'',graceDayUsed:false,totalSessions:0,badges:[],weeklyXP:[]
-}
+const defaultMotivation: MotivationState = {xp:0,level:1,streak:0,lastActiveDate:'',graceDayUsed:false,totalSessions:0,badges:[],weeklyXP:[]}
 
 export default function Wisp({ userId }: { userId?: string }) {
   const [msgs, setMsgs] = useState<Msg[]>([{role:'bot',text:'Salut! Sunt WISP, prietenul tău magic! ✨ Ce aventură explorăm azi?',mood:'happy',ts:'acum'}])
@@ -108,20 +129,14 @@ export default function Wisp({ userId }: { userId?: string }) {
     return s ? JSON.parse(s) : defaultMotivation
   })
   const [newBadges, setNewBadges] = useState<string[]>([])
+  const [typingMsgIdx, setTypingMsgIdx] = useState<number>(-1)
   const { current: achievement, dismiss, checkAndShow } = useAchievements()
   const chatRef = useRef<HTMLDivElement>(null)
   const voiceBuffer = useRef('')
   const recRef = useRef<any>(null)
   const sessionStart = useRef(Date.now())
 
-  // voice leak fix
-  useEffect(() => {
-    return () => {
-      window.speechSynthesis.cancel()
-      try { recRef.current?.stop() } catch(e) {}
-    }
-  }, [])
-
+  useEffect(() => { return () => { stopSpeaking(); try { recRef.current?.stop() } catch(e) {} } }, [])
   useEffect(()=>{ if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight },[msgs,isTyping])
 
   const now = () => new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
@@ -133,21 +148,18 @@ export default function Wisp({ userId }: { userId?: string }) {
     updated = { ...updated, xp: updated.xp + earned, totalSessions: updated.totalSessions + 1, weeklyXP: [...(updated.weeklyXP||[]).slice(-6), earned] }
     const unlocked = checkNewBadges(updated)
     updated.badges = [...updated.badges, ...unlocked]
-    setNewBadges(unlocked)
-    setMotivation(updated)
+    setNewBadges(unlocked); setMotivation(updated)
     localStorage.setItem('wisp-motivation', JSON.stringify(updated))
     checkAndShow(motivation, updated, earned, {})
   }, [motivation, checkAndShow])
 
-  const wispSpeak = useCallback((text:string, m:Mood, onDone?:()=>void) => {
-    const synth=window.speechSynthesis; synth.cancel()
-    const utt=new SpeechSynthesisUtterance(text)
-    utt.lang='ro-RO'; utt.pitch=1.2; utt.rate=0.85; utt.volume=1
-    utt.onstart=()=>{ setSpeaking(true); setMood(m); setStatus('vorbesc...') }
-    utt.onend=()=>{ setSpeaking(false); setMood('happy'); setStatus('gata'); onDone?.() }
-    utt.onerror=()=>{ setSpeaking(false); setMood('happy'); setStatus('gata'); onDone?.() }
-    synth.speak(utt)
-  },[])
+  const wispSpeak = useCallback((text: string, m: Mood, onDone?: () => void) => {
+    speak(text, 'junior', {
+      onStart: () => { setSpeaking(true); setMood(m); setStatus('vorbesc...') },
+      onEnd:   () => { setSpeaking(false); setMood('happy'); setStatus('gata'); onDone?.() },
+      onError: () => { setSpeaking(false); setMood('happy'); setStatus('gata'); onDone?.() },
+    })
+  }, [])
 
   const getReply = async (history:Msg[], text:string) => {
     try {
@@ -167,9 +179,12 @@ export default function Wisp({ userId }: { userId?: string }) {
     setMood('think'); setStatus('mă gândesc...'); setIsTyping(true)
     const reply=await getReply(msgs,text)
     setIsTyping(false)
-    setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice}])
-    setMood(reply.mood); setBurst(b=>b+1)
-    awardXP(1)
+    setMsgs(p=>{
+      const next=[...p,{role:'bot' as const,text:reply.text,mood:reply.mood,ts:now(),isVoice}]
+      setTypingMsgIdx(next.length-1)
+      return next
+    })
+    setMood(reply.mood); setBurst(b=>b+1); awardXP(1)
     wispSpeak(reply.text,reply.mood)
   }
 
@@ -178,13 +193,7 @@ export default function Wisp({ userId }: { userId?: string }) {
     if(!SR){setVoText('Folosește Chrome! 🌐');return}
     voiceBuffer.current=''
     const rec=new SR(); rec.lang='ro-RO'; rec.continuous=true; rec.interimResults=true
-    rec.onresult=(e:any)=>{
-      let t=''; for(let i=e.resultIndex;i<e.results.length;i++){
-        if(e.results[i].isFinal) voiceBuffer.current+=e.results[i][0].transcript+' '
-        else t+=e.results[i][0].transcript
-      }
-      setVoText((voiceBuffer.current+t)||'...')
-    }
+    rec.onresult=(e:any)=>{ let t=''; for(let i=e.resultIndex;i<e.results.length;i++){ if(e.results[i].isFinal) voiceBuffer.current+=e.results[i][0].transcript+' '; else t+=e.results[i][0].transcript } setVoText((voiceBuffer.current+t)||'...') }
     rec.onerror=()=>{}; rec.start(); recRef.current=rec
     setVoiceMode('recording'); setVoText('...'); setMood('excited'); setIsListening(true)
   }
@@ -193,17 +202,19 @@ export default function Wisp({ userId }: { userId?: string }) {
     try{recRef.current?.stop()}catch(e){}; setIsListening(false)
     const text=voiceBuffer.current.trim()
     if(!text){setVoiceMode('idle');setVoText('Nu am auzit nimic! Încearcă din nou 🎤');return}
-    setVoiceMode('analyzing'); setMood('think')
-    sendVoiceMsg(text)
+    setVoiceMode('analyzing'); setMood('think'); sendVoiceMsg(text)
   }
 
   const sendVoiceMsg=async(text:string)=>{
     const m=detectMood(text)
-    setMsgs(p=>[...p,{role:'user',text,mood:m,ts:now(),isVoice:true}])
+    setMsgs(p=>[...p,{role:'user' as const,text,mood:m,ts:now(),isVoice:true}])
     const reply=await getReply(msgs,text)
-    setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice:true}])
-    setMood(reply.mood); setVoText(reply.text); setBurst(b=>b+1)
-    awardXP(1)
+    setMsgs(p=>{
+      const next=[...p,{role:'bot' as const,text:reply.text,mood:reply.mood,ts:now(),isVoice:true}]
+      setTypingMsgIdx(next.length-1)
+      return next
+    })
+    setMood(reply.mood); setVoText(reply.text); setBurst(b=>b+1); awardXP(1)
     setVoiceMode('responding')
     wispSpeak(reply.text,reply.mood,()=>{setVoiceMode('idle');setVoText('Ce mai vrei să îmi spui? 🌟')})
   }
@@ -214,11 +225,7 @@ export default function Wisp({ userId }: { userId?: string }) {
     if(!SR){alert('Folosește Chrome.');return}
     const rec=new SR(); rec.lang='ro-RO'; rec.continuous=false; rec.interimResults=true
     rec.onstart=()=>{setIsListening(true);setMood('excited');setStatus('te ascult...')}
-    rec.onresult=(e:any)=>{
-      let t=''; for(let i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript
-      setInput(t)
-      if(e.results[e.results.length-1].isFinal){try{rec.stop()}catch(e){};setIsListening(false);setStatus('gata');sendMsg(t)}
-    }
+    rec.onresult=(e:any)=>{ let t=''; for(let i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript; setInput(t); if(e.results[e.results.length-1].isFinal){try{rec.stop()}catch(e){};setIsListening(false);setStatus('gata');sendMsg(t)} }
     rec.onerror=()=>{setIsListening(false);setStatus('gata')}
     rec.start(); recRef.current=rec
   }
@@ -226,7 +233,7 @@ export default function Wisp({ userId }: { userId?: string }) {
   const handleVoBtn=()=>{
     if(voiceMode==='idle') startVoiceRec()
     else if(voiceMode==='recording') finishVoiceRec()
-    else if(voiceMode==='responding'){window.speechSynthesis.cancel();setSpeaking(false);setVoiceMode('idle');setVoText('Ce mai vrei să îmi spui? 🌟')}
+    else if(voiceMode==='responding'){stopSpeaking();setSpeaking(false);setVoiceMode('idle');setVoText('Ce mai vrei să îmi spui? 🌟')}
   }
 
   const statusColor=status==='te ascult...'?'#E24B4A':status==='mă gândesc...'?'#EF9F27':status==='vorbesc...'?'#7F77DD':'rgba(255,255,255,.15)'
@@ -240,6 +247,7 @@ export default function Wisp({ userId }: { userId?: string }) {
         @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
         @keyframes rpulse{0%,100%{opacity:1}50%{opacity:.4}}
         @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        @keyframes cursor-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
         .star-bg{position:absolute;border-radius:50%;animation:rpulse var(--d,3s) infinite;pointer-events:none}
       `}</style>
 
@@ -263,7 +271,7 @@ export default function Wisp({ userId }: { userId?: string }) {
         </div>
       </div>
 
-      {showXP && (
+      {showXP&&(
         <div style={{padding:'0 18px 12px',position:'relative',zIndex:1}}>
           <XPBar state={motivation} newBadges={newBadges}/>
         </div>
@@ -292,7 +300,10 @@ export default function Wisp({ userId }: { userId?: string }) {
             {m.role==='user'&&<div style={{width:24,height:24,borderRadius:'50%',background:'rgba(255,255,255,.05)',border:'0.5px solid rgba(255,255,255,.1)',color:'rgba(255,255,255,.35)',fontSize:10,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>Tu</div>}
             <div>
               <div style={{padding:'9px 13px',borderRadius:16,fontSize:13,lineHeight:1.55,background:m.role==='bot'?'rgba(127,119,221,.13)':'rgba(127,119,221,.22)',color:'rgba(255,255,255,.9)',border:`0.5px solid rgba(127,119,221,${m.role==='bot'?.2:.3})`,borderBottomLeftRadius:m.role==='bot'?3:16,borderBottomRightRadius:m.role==='user'?3:16,fontStyle:m.isVoice?'italic':'normal'}}>
-                {m.isVoice?`🎤 ${m.text}`:m.text}
+                {m.role==='bot' && i===typingMsgIdx
+                  ? <TypingMsg text={m.isVoice?`🎤 ${m.text}`:m.text} speed={45}/>
+                  : (m.isVoice?`🎤 ${m.text}`:m.text)
+                }
               </div>
               <div style={{fontSize:10,marginTop:3,color:'rgba(255,255,255,.2)',display:'flex',gap:4,justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
                 {MOODS[m.mood].emoji} {m.ts}{m.isVoice?' · 🎤':''}
@@ -316,7 +327,7 @@ export default function Wisp({ userId }: { userId?: string }) {
 
       {voiceOpen&&(
         <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse at center, rgba(127,119,221,.15) 0%, rgba(0,0,0,.97) 70%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20,zIndex:100,animation:'msg-in .4s ease-out'}}>
-          <button onClick={()=>{setVoiceOpen(false);window.speechSynthesis.cancel();try{recRef.current?.stop()}catch(e){};setVoiceMode('idle');setSpeaking(false);setIsListening(false);setMood('happy')}} style={{position:'absolute',top:18,right:18,background:'none',border:'none',color:'rgba(255,255,255,.2)',fontSize:22,cursor:'pointer'}}>✕</button>
+          <button onClick={()=>{setVoiceOpen(false);stopSpeaking();try{recRef.current?.stop()}catch(e){};setVoiceMode('idle');setSpeaking(false);setIsListening(false);setMood('happy')}} style={{position:'absolute',top:18,right:18,background:'none',border:'none',color:'rgba(255,255,255,.2)',fontSize:22,cursor:'pointer'}}>✕</button>
           <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
             {[140,180,220].map((sz,i)=>(
               <div key={i} style={{position:'absolute',width:sz,height:sz,borderRadius:'50%',border:`${i===2?.5:1}px solid rgba(127,119,221,${speaking?.6:.35})`,animation:speaking?`rpulse ${.5+i*.2}s ease-in-out infinite ${i*.15}s`:`ring ${1.8+i*.3}s ease-out infinite ${i*.3}s`}}/>
@@ -328,19 +339,13 @@ export default function Wisp({ userId }: { userId?: string }) {
           </div>
           <div style={{textAlign:'center'}}>
             <div style={{fontSize:22,fontWeight:300,letterSpacing:'.08em',color:'#c8c5f5'}}>WISP</div>
-            <div style={{fontSize:11,color:'rgba(127,119,221,.4)',marginTop:2}}>
-              {voiceMode==='idle'?'apasă pentru a vorbi':voiceMode==='recording'?'🔴 te ascult...':voiceMode==='analyzing'?'⏳ analizez...':'🔊 răspund...'}
-            </div>
+            <div style={{fontSize:11,color:'rgba(127,119,221,.4)',marginTop:2}}>{voiceMode==='idle'?'apasă pentru a vorbi':voiceMode==='recording'?'🔴 te ascult...':voiceMode==='analyzing'?'⏳ analizez...':'🔊 răspund...'}</div>
           </div>
-          <div style={{maxWidth:260,textAlign:'center',fontSize:14,color:'rgba(255,255,255,.75)',minHeight:52,lineHeight:1.65,fontStyle:voiceMode==='recording'?'italic':'normal',background:'rgba(127,119,221,.08)',borderRadius:16,padding:'12px 20px',border:'0.5px solid rgba(127,119,221,.15)'}}>
-            {voText}
-          </div>
+          <div style={{maxWidth:260,textAlign:'center',fontSize:14,color:'rgba(255,255,255,.75)',minHeight:52,lineHeight:1.65,fontStyle:voiceMode==='recording'?'italic':'normal',background:'rgba(127,119,221,.08)',borderRadius:16,padding:'12px 20px',border:'0.5px solid rgba(127,119,221,.15)'}}>{voText}</div>
           <button onClick={handleVoBtn} style={{width:74,height:74,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:30,cursor:'pointer',border:`1.5px solid rgba(127,119,221,${voiceMode==='recording'?.3:voiceMode==='responding'?.5:.2})`,background:voiceMode==='recording'?'rgba(224,75,74,.15)':voiceMode==='responding'?'rgba(127,119,221,.2)':'rgba(127,119,221,.1)',animation:voiceMode==='recording'?'rpulse .7s infinite':undefined,transition:'all .25s'}}>
             {voiceMode==='idle'?'🎤':voiceMode==='recording'?'⏹':voiceMode==='analyzing'?'⏳':'🔊'}
           </button>
-          <div style={{fontSize:11,color:'rgba(255,255,255,.18)',textAlign:'center',maxWidth:220,lineHeight:1.6}}>
-            {voiceMode==='idle'?'Apasă 🎤, vorbește liber, apoi ⏹ când gata':voiceMode==='recording'?'Apasă ⏹ când ai terminat':voiceMode==='responding'?'Apasă 🔊 pentru a vorbi din nou':''}
-          </div>
+          <div style={{fontSize:11,color:'rgba(255,255,255,.18)',textAlign:'center',maxWidth:220,lineHeight:1.6}}>{voiceMode==='idle'?'Apasă 🎤, vorbește liber, apoi ⏹ când gata':voiceMode==='recording'?'Apasă ⏹ când ai terminat':voiceMode==='responding'?'Apasă 🔊 pentru a vorbi din nou':''}</div>
         </div>
       )}
 
