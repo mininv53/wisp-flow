@@ -5,12 +5,15 @@ const client = new Anthropic()
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, systemContext } = await request.json()
+    const { messages, systemContext, stylePrompt } = await request.json()
+
+    const fullSystem = (systemContext || 'Ești Flow, un asistent AI de productivitate. Răspunde în română.')
+      + (stylePrompt || '')
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
-      system: systemContext || 'Ești Flow, un asistent AI de productivitate. Răspunde în română.',
+      system: fullSystem,
       messages: messages.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content

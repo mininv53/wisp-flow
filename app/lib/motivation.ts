@@ -92,3 +92,81 @@ export function getMotivationMessage(state: MotivationState, mood: string): stri
   if (mood === '🔥') return `Energie maximă. Zi bună pentru taskuri dificile.`
   return `Ziua ${state.streak > 0 ? state.streak : 1} din seria ta.`
 }
+
+export interface StyleProfile {
+  tone: 'formal' | 'informal' | 'unknown'
+  avgMessageLength: 'short' | 'medium' | 'long'
+  emojis: string[]
+  language: 'ro' | 'en' | 'mix'
+  sampleMessages: string[]
+}
+
+export function analyzeStyle(messages: string[]): StyleProfile {
+  if (messages.length === 0) return {
+    tone: 'unknown', avgMessageLength: 'medium',
+    emojis: [], language: 'ro', sampleMessages: []
+  }
+
+  const text = messages.join(' ')
+
+  // Detectare ton
+  const informalSignals = ['bă', 'frate', 'ok', 'oke', 'da', 'nu', 'mișto', 'tare', 'super', 'hai', 'lasă', 'uite', 'bre', 'ngl', 'tbh', 'lol', 'omg']
+  const informalCount = informalSignals.filter(w => text.toLowerCase().includes(w)).length
+  const tone = informalCount >= 2 ? 'informal' : 'formal'
+
+  // Lungime medie
+  const avgLen = messages.reduce((sum, m) => sum + m.length, 0) / messages.length
+  const avgMessageLength = avgLen < 30 ? 'short' : avgLen < 100 ? 'medium' : 'long'
+
+  // Emoji-uri folosite
+  const emojiRegex = /[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu
+  const foundEmojis = [...new Set(text.match(emojiRegex) ?? [])]
+
+  // Limbă
+  const roWords = ['și', 'că', 'nu', 'da', 'este', 'sunt', 'am', 'eu', 'tu', 'hai', 'bine', 'azi', 'acum', 'fac', 'ai', 'îmi', 'îți']
+  const enWords = ['the', 'is', 'are', 'and', 'you', 'ok', 'okay', 'yeah', 'nope', 'cant', 'dont', 'im', 'its']
+  const roCount = roWords.filter(w => text.toLowerCase().includes(w)).length
+  const enCount = enWords.filter(w => text.toLowerCase().includes(w)).length
+  const language = roCount > enCount * 2 ? 'ro' : enCount > roCount * 2 ? 'en' : 'mix'
+
+  return {
+    tone, avgMessageLength, emojis: foundEmojis.slice(0, 5),
+    language, sampleMessages: messages.slice(-3)
+  }
+}
+
+export function buildStylePrompt(profile: StyleProfile): string {
+  if (profile.tone === 'unknown') return ''
+
+  const parts: string[] = []
+
+  if (profile.tone === 'informal') {
+    parts.push('Vorbește casual și relaxat, ca un prieten bun. Fără limbaj corporativ sau formal.')
+  } else {
+    parts.push('Vorbește profesional dar cald, fără a fi rece.')
+  }
+
+  if (profile.avgMessageLength === 'short') {
+    parts.push('Mesajele tale să fie SCURTE — maxim 2-3 propoziții. Utilizatorul preferă răspunsuri concise.')
+  } else if (profile.avgMessageLength === 'long') {
+    parts.push('Poți fi mai detaliat — utilizatorul scrie mult și apreciază explicații complete.')
+  }
+
+  if (profile.emojis.length > 0) {
+    parts.push(`Folosește emoji-uri natural în răspunsuri, în special: ${profile.emojis.join(' ')}`)
+  }
+
+  if (profile.language === 'en') {
+    parts.push('Răspunde în engleză.')
+  } else if (profile.language === 'mix') {
+    parts.push('Utilizatorul mixează română și engleză — poți face la fel natural.')
+  } else {
+    parts.push('Răspunde în română.')
+  }
+
+  if (profile.sampleMessages.length > 0) {
+    parts.push(`Stilul utilizatorului din mesaje recente: "${profile.sampleMessages[profile.sampleMessages.length - 1]}"`)
+  }
+
+  return '\n\nADAPTARE STIL UTILIZATOR:\n' + parts.join('\n')
+}
