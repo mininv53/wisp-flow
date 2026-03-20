@@ -1,5 +1,4 @@
 'use client'
-
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
@@ -7,11 +6,9 @@ function useInView(threshold = 0.1) {
   const ref = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
+    const el = ref.current; if (!el) return
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true) }, { threshold })
-    obs.observe(el)
-    return () => obs.disconnect()
+    obs.observe(el); return () => obs.disconnect()
   }, [threshold])
   return { ref, visible }
 }
@@ -21,147 +18,155 @@ function Counter({ to, suffix = '' }: { to: number; suffix?: string }) {
   const { ref, visible } = useInView()
   useEffect(() => {
     if (!visible) return
-    let cur = 0
-    const step = Math.ceil(to / 50)
-    const id = setInterval(() => {
-      cur += step
-      if (cur >= to) { setVal(to); clearInterval(id) }
-      else setVal(cur)
-    }, 28)
+    let cur = 0; const step = Math.ceil(to / 50)
+    const id = setInterval(() => { cur += step; if (cur >= to) { setVal(to); clearInterval(id) } else setVal(cur) }, 28)
     return () => clearInterval(id)
   }, [visible, to])
   return <span ref={ref}>{val.toLocaleString()}{suffix}</span>
 }
 
+function ParticleBg() {
+  const ps = useRef(Array.from({ length: 32 }, (_, i) => ({
+    id: i, x: Math.random() * 100, y: Math.random() * 100,
+    type: i % 3, size: 3 + Math.random() * 5,
+    dur: 18 + Math.random() * 18, delay: Math.random() * 14,
+    tx: (Math.random() - .5) * 90, ty: (Math.random() - .5) * 90,
+    warm: i % 2 === 0,
+  })))
+  return (
+    <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+      {ps.current.map(p => (
+        <div key={p.id} style={{
+          position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
+          width: p.type === 2 ? p.size * 3 : p.size,
+          height: p.type === 2 ? 1 : p.size,
+          borderRadius: p.type === 1 ? '50%' : 0,
+          background: p.warm ? `rgba(220,120,70,.08)` : `rgba(160,100,220,.07)`,
+          transform: p.type === 0 ? 'rotate(45deg)' : 'none',
+          animationName: 'pdrift', animationDuration: `${p.dur}s`,
+          animationDelay: `${p.delay}s`, animationIterationCount: 'infinite',
+          animationTimingFunction: 'ease-in-out',
+          ['--tx' as any]: `${p.tx}px`, ['--ty' as any]: `${p.ty}px`,
+        }} />
+      ))}
+    </div>
+  )
+}
+
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false)
-  const [mouseX, setMouseX] = useState(0)
-  const [mouseY, setMouseY] = useState(0)
-
+  const [mx, setMx] = useState(50); const [my, setMy] = useState(40)
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60)
-    const onMouse = (e: MouseEvent) => {
-      setMouseX((e.clientX / window.innerWidth) * 100)
-      setMouseY((e.clientY / window.innerHeight) * 100)
-    }
-    window.addEventListener('scroll', onScroll)
-    window.addEventListener('mousemove', onMouse)
+    const onMouse = (e: MouseEvent) => { setMx(e.clientX / window.innerWidth * 100); setMy(e.clientY / window.innerHeight * 100) }
+    window.addEventListener('scroll', onScroll); window.addEventListener('mousemove', onMouse)
     return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('mousemove', onMouse) }
   }, [])
 
-  const s1 = useInView()
-  const s2 = useInView()
-  const s3 = useInView()
-  const s4 = useInView()
-  const s5 = useInView()
-  const s6 = useInView()
+  const s1=useInView(),s2=useInView(),s3=useInView(),s4=useInView(),s5=useInView(),s6=useInView(),s7=useInView()
+
+  const ACCENT = 'rgba(220,130,80,1)'
+  const ACCENT2 = 'rgba(180,100,220,1)'
+  const ACCENT_DIM = 'rgba(220,130,80,.18)'
+  const ACCENT2_DIM = 'rgba(180,100,220,.15)'
 
   return (
-    <div className="bg-[#0a0a0a] text-white min-h-screen overflow-x-hidden selection:bg-white selection:text-black"
-      style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-
+    <div style={{ background: '#0d0a0f', color: 'rgba(255,255,255,.82)', minHeight: '100vh', overflowX: 'hidden', fontFamily: "'DM Sans',system-ui,sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Serif+Display:ital@0;1&display=swap');
-        .serif { font-family: 'DM Serif Display', Georgia, serif; }
-        .serif-italic { font-family: 'DM Serif Display', Georgia, serif; font-style: italic; }
-        .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.9s cubic-bezier(0.16,1,0.3,1), transform 0.9s cubic-bezier(0.16,1,0.3,1); }
-        .reveal.in { opacity: 1; transform: none; }
-        .reveal-d1 { transition-delay: 0.1s; }
-        .reveal-d2 { transition-delay: 0.22s; }
-        .reveal-d3 { transition-delay: 0.34s; }
-        .reveal-d4 { transition-delay: 0.46s; }
-        .line-draw { stroke-dasharray: 1000; stroke-dashoffset: 1000; transition: stroke-dashoffset 1.8s cubic-bezier(0.16,1,0.3,1); }
-        .line-draw.in { stroke-dashoffset: 0; }
-        @keyframes drift { 0%,100% { transform: translate(0,0); } 33% { transform: translate(6px,-8px); } 66% { transform: translate(-4px,5px); } }
-        .drift { animation: drift 12s ease-in-out infinite; }
-        .drift-slow { animation: drift 18s ease-in-out infinite 3s; }
-        @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-        .ticker-inner { animation: ticker 22s linear infinite; }
-        .hover-lift { transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
-        .hover-lift:hover { transform: translateY(-3px); }
-        hr.fancy { border: none; border-top: 1px solid rgba(255,255,255,0.06); }
+        *::selection{background:rgba(220,130,80,.3);color:#fff}
+        .serif{font-family:'DM Serif Display',Georgia,serif}
+        .serif-i{font-family:'DM Serif Display',Georgia,serif;font-style:italic}
+        .reveal{opacity:0;transform:translateY(22px);transition:opacity .9s cubic-bezier(.16,1,.3,1),transform .9s cubic-bezier(.16,1,.3,1)}
+        .reveal.in{opacity:1;transform:none}
+        .d1{transition-delay:.1s}.d2{transition-delay:.22s}.d3{transition-delay:.34s}.d4{transition-delay:.46s}
+        @keyframes pdrift{0%{opacity:0;transform:translate(0,0) rotate(45deg)}15%{opacity:1}85%{opacity:.35}100%{opacity:0;transform:translate(var(--tx),var(--ty)) rotate(100deg)}}
+        @keyframes orb-drift{0%,100%{transform:translate(0,0)}33%{transform:translate(12px,-15px)}66%{transform:translate(-8px,10px)}}
+        @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+        @keyframes float-av{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+        @keyframes glow{0%,100%{opacity:.5}50%{opacity:1}}
+        @keyframes bar-fill{from{width:0}to{width:var(--w)}}
+        @keyframes badge-pop{0%{transform:scale(0) rotate(-15deg);opacity:0}70%{transform:scale(1.1) rotate(3deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+        .hover-up{transition:transform .35s cubic-bezier(.16,1,.3,1)}
+        .hover-up:hover{transform:translateY(-3px)}
+        hr.line{border:none;border-top:1px solid rgba(255,255,255,.05)}
       `}</style>
 
-      {/* ── Ambient glow follows mouse ── */}
-      <div className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000"
-        style={{
-          background: `radial-gradient(600px circle at ${mouseX}% ${mouseY}%, rgba(120,80,255,0.04), transparent 70%)`
-        }} />
+      <ParticleBg/>
+
+      {/* mouse glow */}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1, transition: 'all .8s', background: `radial-gradient(700px circle at ${mx}% ${my}%, rgba(220,100,50,.05), transparent 65%)` }}/>
+
+      {/* warm gradient base */}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, background: 'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(180,80,40,.06), transparent 60%), radial-gradient(ellipse 60% 50% at 80% 80%, rgba(140,60,200,.05), transparent 50%)' }}/>
 
       {/* ── NAV ── */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-white/[0.04]' : ''}`}>
-        <div className="max-w-6xl mx-auto px-8 py-5 flex items-center justify-between">
-          <Link href="/" className="text-sm font-medium tracking-tight">
-            Wisp<span className="text-white/30">+</span>Flow
+      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, transition: 'all .4s', background: scrolled ? 'rgba(13,10,15,.92)' : 'transparent', backdropFilter: scrolled ? 'blur(20px)' : 'none', borderBottom: scrolled ? '0.5px solid rgba(220,130,80,.08)' : 'none' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '18px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link href="/" style={{ fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,.8)', textDecoration: 'none', letterSpacing: '-.01em' }}>
+            Wisp<span style={{ color: 'rgba(220,130,80,.5)' }}>+</span>Flow
           </Link>
-          <div className="hidden md:flex items-center gap-10 text-xs text-white/40 tracking-wide uppercase">
-            <a href="#produse" className="hover:text-white transition-colors duration-300">Produse</a>
-            <a href="#cum-functioneaza" className="hover:text-white transition-colors duration-300">Cum funcționează</a>
-            <a href="#preturi" className="hover:text-white transition-colors duration-300">Prețuri</a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 32, fontSize: 12, color: 'rgba(255,255,255,.3)', letterSpacing: '.12em', textTransform: 'uppercase' }}>
+            {[['#produse','Produse'],['#progres','Progres'],['#preturi','Prețuri']].map(([href,label])=>(
+              <a key={href} href={href} style={{ color: 'rgba(255,255,255,.3)', textDecoration: 'none', transition: 'color .2s' }} onMouseEnter={e=>(e.currentTarget.style.color='rgba(255,255,255,.7)')} onMouseLeave={e=>(e.currentTarget.style.color='rgba(255,255,255,.3)')}>{label}</a>
+            ))}
           </div>
-          <Link href="/flow"
-            className="text-xs border border-white/15 hover:border-white/40 text-white/70 hover:text-white px-5 py-2.5 rounded-full transition-all duration-300">
+          <Link href="/flow" style={{ fontSize: 12, border: '0.5px solid rgba(220,130,80,.3)', color: 'rgba(220,130,80,.8)', padding: '8px 20px', borderRadius: 40, textDecoration: 'none', transition: 'all .25s', background: 'rgba(220,130,80,.06)' }}
+            onMouseEnter={(e:any)=>{e.currentTarget.style.background='rgba(220,130,80,.14)';e.currentTarget.style.borderColor='rgba(220,130,80,.6)'}}
+            onMouseLeave={(e:any)=>{e.currentTarget.style.background='rgba(220,130,80,.06)';e.currentTarget.style.borderColor='rgba(220,130,80,.3)'}}>
             Încearcă gratuit
           </Link>
         </div>
       </nav>
 
-      {/* ══════════════════════════════════════
-          HERO
-      ══════════════════════════════════════ */}
-      <section className="relative min-h-screen flex flex-col justify-center px-8 pt-32 pb-20 max-w-6xl mx-auto">
+      {/* ══ HERO ══ */}
+      <section style={{ position: 'relative', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '120px 32px 80px', maxWidth: 1100, margin: '0 auto', zIndex: 2 }}>
+        {/* warm orb */}
+        <div style={{ position: 'absolute', top: '20%', right: '8%', width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(220,100,50,.1), transparent 70%)', animation: 'orb-drift 16s ease-in-out infinite', pointerEvents: 'none' }}/>
+        <div style={{ position: 'absolute', bottom: '25%', left: '5%', width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, rgba(160,70,220,.08), transparent 70%)', animation: 'orb-drift 22s ease-in-out infinite 4s', pointerEvents: 'none' }}/>
 
-        {/* floating orbs */}
-        <div className="absolute top-40 right-20 w-72 h-72 rounded-full drift opacity-[0.03]"
-          style={{ background: 'radial-gradient(circle, #7c3aed, transparent)' }} />
-        <div className="absolute bottom-40 left-10 w-48 h-48 rounded-full drift-slow opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #4f46e5, transparent)' }} />
-
-        <div className="relative z-10 max-w-5xl">
-          {/* eyebrow */}
-          <div className="flex items-center gap-3 mb-12">
-            <div className="w-6 h-px bg-white/20" />
-            <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">
-              Pentru minți care funcționează altfel
-            </span>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 48 }}>
+            <div style={{ width: 32, height: 1, background: `rgba(220,130,80,.4)` }}/>
+            <span style={{ fontSize: 11, color: 'rgba(220,130,80,.6)', letterSpacing: '.2em', textTransform: 'uppercase', fontWeight: 300 }}>pentru minți care funcționează altfel</span>
           </div>
 
-          {/* headline */}
-          <h1 className="serif text-[clamp(3.5rem,9vw,8rem)] leading-[0.92] tracking-tight mb-10 text-white/95">
-            Nu forța creierul<br />
-            să se adapteze<br />
-            <span className="serif-italic text-white/45">la sistem.</span>
+          <h1 className="serif" style={{ fontSize: 'clamp(3.2rem,8.5vw,7.5rem)', lineHeight: .92, letterSpacing: '-.02em', marginBottom: 40, color: 'rgba(255,255,255,.92)' }}>
+            Nu forța creierul<br/>
+            să se adapteze<br/>
+            <span className="serif-i" style={{ color: 'rgba(220,130,80,.55)' }}>la sistem.</span>
           </h1>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-8 mb-24">
-            <p className="text-white/40 text-base leading-relaxed max-w-xs font-light">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 32, marginBottom: 80 }}>
+            <p style={{ fontSize: 16, color: 'rgba(255,255,255,.38)', lineHeight: 1.7, maxWidth: 380, fontWeight: 300 }}>
               Primul ecosistem AI pentru ADHD — de la 6 la 40+ ani. Construim sistemul în jurul tău.
             </p>
-            <div className="flex items-center gap-4">
-              <Link href="/flow"
-                className="group flex items-center gap-3 bg-white text-black text-sm font-medium px-7 py-3.5 rounded-full hover:bg-white/90 transition-all duration-300 hover-lift">
-                Încearcă Flow
-                <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <Link href="/flow" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(220,130,80,1)', color: '#0d0a0f', fontSize: 14, fontWeight: 500, padding: '14px 28px', borderRadius: 40, textDecoration: 'none', transition: 'all .25s' }}
+                onMouseEnter={(e:any)=>{e.currentTarget.style.background='rgba(240,150,90,1)';e.currentTarget.style.transform='translateY(-2px)'}}
+                onMouseLeave={(e:any)=>{e.currentTarget.style.background='rgba(220,130,80,1)';e.currentTarget.style.transform='none'}}>
+                Încearcă Flow <span>→</span>
               </Link>
-              <Link href="/wisp"
-                className="text-sm text-white/40 hover:text-white transition-colors duration-300">
+              <Link href="/wisp" style={{ fontSize: 13, color: 'rgba(255,255,255,.35)', textDecoration: 'none', transition: 'color .2s' }}
+                onMouseEnter={(e:any)=>e.currentTarget.style.color='rgba(255,255,255,.7)'}
+                onMouseLeave={(e:any)=>e.currentTarget.style.color='rgba(255,255,255,.35)'}>
                 sau Wisp pentru copii ↗
               </Link>
             </div>
           </div>
 
-          {/* stats row */}
-          <div className="grid grid-cols-3 gap-8 pt-8 border-t border-white/[0.06] max-w-lg">
+          {/* stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 32, paddingTop: 32, borderTop: '0.5px solid rgba(255,255,255,.06)', maxWidth: 500 }}>
             {[
               { n: 150, s: 'M', label: 'familii cu ADHD global' },
               { n: 65, s: '%', label: 'retenție țintă' },
-              { n: 3, s: '', label: 'produse. un ecosistem.' },
+              { n: 3, s: '', label: 'produse · un ecosistem' },
             ].map((stat, i) => (
               <div key={i}>
-                <p className="serif text-3xl text-white/80 mb-1">
-                  <Counter to={stat.n} suffix={stat.s} />
+                <p className="serif" style={{ fontSize: 32, color: 'rgba(255,255,255,.75)', marginBottom: 4 }}>
+                  <Counter to={stat.n} suffix={stat.s}/>
                 </p>
-                <p className="text-white/25 text-xs font-light">{stat.label}</p>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,.22)', fontWeight: 300 }}>{stat.label}</p>
               </div>
             ))}
           </div>
@@ -169,280 +174,300 @@ export default function LandingPage() {
       </section>
 
       {/* ── TICKER ── */}
-      <div className="border-y border-white/[0.05] py-4 overflow-hidden">
-        <div className="ticker-inner flex gap-16 whitespace-nowrap text-white/15 text-xs tracking-widest uppercase font-light">
-          {[...Array(2)].map((_, j) => (
-            <span key={j} className="flex gap-16">
-              {['Wisp Junior', '·', 'Wisp Teen', '·', 'Wisp Adult', '·', 'Flow', '·', 'ADHD', '·', 'Deep Work', '·', 'Pattern Recognition', '·', 'Memorie Persistentă', '·', 'Task Breakdown', '·', 'Profil Neurologic', '·'].map((t, i) => (
-                <span key={i}>{t}</span>
+      <div style={{ borderTop: '0.5px solid rgba(220,130,80,.08)', borderBottom: '0.5px solid rgba(220,130,80,.08)', padding: '14px 0', overflow: 'hidden', position: 'relative', zIndex: 2 }}>
+        <div style={{ display: 'flex', gap: 64, whiteSpace: 'nowrap', animation: 'ticker 24s linear infinite' }}>
+          {[...Array(2)].map((_,j)=>(
+            <span key={j} style={{ display: 'flex', gap: 64 }}>
+              {['Wisp Junior','·','Wisp Teen','·','Flow','·','ADHD','·','XP & Achievements','·','Deep Work','·','Memorie Persistentă','·','Task Breakdown','·','Streak-uri','·','Profil Neurologic','·'].map((t,i)=>(
+                <span key={i} style={{ fontSize: 11, color: 'rgba(220,130,80,.2)', letterSpacing: '.14em', textTransform: 'uppercase', fontWeight: 300 }}>{t}</span>
               ))}
             </span>
           ))}
         </div>
       </div>
 
-      {/* ══════════════════════════════════════
-          PRODUSE
-      ══════════════════════════════════════ */}
-      <section id="produse" className="py-40 px-8 max-w-6xl mx-auto">
-
-        <div ref={s1.ref} className={`reveal ${s1.visible ? 'in' : ''} mb-20`}>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-6 h-px bg-white/20" />
-            <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">Ecosistemul</span>
+      {/* ══ PRODUSE ══ */}
+      <section id="produse" style={{ padding: '120px 32px', maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 2 }}>
+        <div ref={s1.ref} className={`reveal ${s1.visible?'in':''}`} style={{ marginBottom: 64 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <div style={{ width: 28, height: 1, background: 'rgba(220,130,80,.4)' }}/>
+            <span style={{ fontSize: 11, color: 'rgba(220,130,80,.5)', letterSpacing: '.2em', textTransform: 'uppercase' }}>Ecosistemul</span>
           </div>
-          <h2 className="serif text-[clamp(2.5rem,6vw,5rem)] leading-tight text-white/90">
-            Trei produse.<br />
-            <span className="serif-italic text-white/35">O singură memorie.</span>
+          <h2 className="serif" style={{ fontSize: 'clamp(2.2rem,5vw,4.5rem)', lineHeight: 1.05, color: 'rgba(255,255,255,.88)' }}>
+            Trei produse.<br/>
+            <span className="serif-i" style={{ color: 'rgba(255,255,255,.3)' }}>O singură memorie.</span>
           </h2>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-px bg-white/[0.05] rounded-2xl overflow-hidden">
-
-          {/* Wisp Junior */}
-          <div ref={s2.ref}
-            className={`reveal ${s2.visible ? 'in' : ''} reveal-d1 bg-[#0a0a0a] p-8 flex flex-col hover-lift group`}>
-            <div className="mb-8">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg mb-6">
-                🤖
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: 'rgba(220,130,80,.07)', borderRadius: 20, overflow: 'hidden' }}>
+          {[
+            { key:'junior', icon:'✨', badge:'Wisp Junior', age:'6 — 12 ani', accentColor:'rgba(180,140,255,1)', dimColor:'rgba(180,140,255,.12)',
+              desc:'Companion AI cu personalitate și memorie. Sesiuni de 8 minute, puzzle-uri cognitive camuflate în aventuri.',
+              features:['Sesiuni 8 min — fereastra ADHD','Detectie oboseală în timp real','Dashboard parental lunar'],
+              href:'/wisp', d:'1' },
+            { key:'teen', icon:'⚡', badge:'Wisp Teen', age:'13 — 18 ani', accentColor:'rgba(220,130,80,1)', dimColor:'rgba(220,130,80,.12)',
+              desc:'Co-creator AI pentru proiecte reale. Cod, design, muzică, scriere — output concret în 3 zile.',
+              features:['Proiecte reale în 3 zile','AI ca partener, nu profesor','Output demonstrabil'],
+              href:'/wisp-teen', d:'2' },
+            { key:'flow', icon:'◎', badge:'Flow', age:'18+ ani', accentColor:'rgba(200,130,100,1)', dimColor:'rgba(200,130,100,.12)',
+              desc:'Partener AI pentru adulți cu ADHD sau burnout. Reorganizează creierul în jurul taskurilor, nu invers.',
+              features:['Profil neurologic live','Calibrare zilnică pe stare','Pattern recognition după 7 zile'],
+              href:'/flow', d:'3' },
+          ].map((p) => (
+            <div key={p.key} ref={s2.ref} className={`reveal d${p.d} ${s2.visible?'in':''} hover-up`}
+              style={{ background: '#0d0a0f', padding: 36, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: p.dimColor, border: `0.5px solid ${p.accentColor.replace('1)','0.2)')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, marginBottom: 24 }}>
+                {p.icon}
               </div>
-              <p className="text-white/25 text-xs tracking-widest uppercase mb-2">Wisp Junior</p>
-              <h3 className="serif text-2xl text-white/85 mb-3">6 — 12 ani</h3>
-              <p className="text-white/35 text-sm leading-relaxed font-light">
-                Companion AI cu personalitate și memorie. Sesiuni de 8 minute, puzzle-uri cognitive camuflate în aventuri, profil psihocognitiv lunar.
-              </p>
-            </div>
-            <div className="mt-auto space-y-2 mb-6">
-              {['Sesiuni 8 min — fereastra ADHD', 'Detectie oboseală în timp real', 'Dashboard parental lunar'].map((f, i) => (
-                <div key={i} className="flex items-center gap-2.5 text-xs text-white/30">
-                  <div className="w-1 h-1 rounded-full bg-indigo-400/50" />
-                  {f}
-                </div>
-              ))}
-            </div>
-            <Link href="/wisp"
-              className="text-xs text-indigo-400/60 group-hover:text-indigo-400 transition-colors duration-300 flex items-center gap-1.5">
-              Încearcă Wisp Junior <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
-            </Link>
-          </div>
-
-          {/* Wisp Teen */}
-          <div ref={s2.ref}
-            className={`reveal ${s2.visible ? 'in' : ''} reveal-d2 bg-[#0a0a0a] p-8 flex flex-col hover-lift group border-x border-white/[0.05]`}>
-            <div className="mb-8">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-lg mb-6">
-                ⌨️
+              <p style={{ fontSize: 10, color: 'rgba(255,255,255,.22)', letterSpacing: '.15em', textTransform: 'uppercase', marginBottom: 6 }}>{p.badge}</p>
+              <h3 className="serif" style={{ fontSize: 26, color: 'rgba(255,255,255,.82)', marginBottom: 12 }}>{p.age}</h3>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,.3)', lineHeight: 1.65, fontWeight: 300, marginBottom: 24, flex: 1 }}>{p.desc}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}>
+                {p.features.map((f,i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'rgba(255,255,255,.28)' }}>
+                    <div style={{ width: 4, height: 4, borderRadius: '50%', background: p.accentColor.replace('1)','.5)'), flexShrink: 0 }}/>
+                    {f}
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center gap-2 mb-2">
-                <p className="text-white/25 text-xs tracking-widest uppercase">Wisp Teen</p>
-                <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400/70 px-2 py-0.5 rounded-full">nou</span>
-              </div>
-              <h3 className="serif text-2xl text-white/85 mb-3">13 — 18 ani</h3>
-              <p className="text-white/35 text-sm leading-relaxed font-light">
-                Co-creator AI pentru proiecte reale. Cod, design, muzică, scriere — output concret și partajabil în 3 zile, nu certificate.
-              </p>
+              <Link href={p.href} style={{ fontSize: 12, color: p.accentColor.replace('1)','.6)'), textDecoration: 'none', transition: 'color .2s', display: 'flex', alignItems: 'center', gap: 6 }}
+                onMouseEnter={(e:any)=>e.currentTarget.style.color=p.accentColor}
+                onMouseLeave={(e:any)=>e.currentTarget.style.color=p.accentColor.replace('1)','.6)')}>
+                Încearcă {p.badge} <span>→</span>
+              </Link>
             </div>
-            <div className="mt-auto space-y-2 mb-6">
-              {['Proiecte reale în 3 zile', 'AI ca partener, nu ca profesor', 'Output demonstrabil și partajabil'].map((f, i) => (
-                <div key={i} className="flex items-center gap-2.5 text-xs text-white/30">
-                  <div className="w-1 h-1 rounded-full bg-emerald-400/50" />
-                  {f}
-                </div>
-              ))}
-            </div>
-            <Link href="/wisp-teen"
-              className="text-xs text-emerald-400/60 group-hover:text-emerald-400 transition-colors duration-300 flex items-center gap-1.5">
-              Încearcă Wisp Teen <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
-            </Link>
-          </div>
-
-          {/* Flow */}
-          <div ref={s2.ref}
-            className={`reveal ${s2.visible ? 'in' : ''} reveal-d3 bg-[#0a0a0a] p-8 flex flex-col hover-lift group`}>
-            <div className="mb-8">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-lg mb-6">
-                ⚡
-              </div>
-              <p className="text-white/25 text-xs tracking-widest uppercase mb-2">Flow</p>
-              <h3 className="serif text-2xl text-white/85 mb-3">18+ ani</h3>
-              <p className="text-white/35 text-sm leading-relaxed font-light">
-                Partener AI pentru adulți cu ADHD, burnout sau deficit de motivație. Nu organizează task-uri — reorganizează creierul în jurul lor.
-              </p>
-            </div>
-            <div className="mt-auto space-y-2 mb-6">
-              {['Profil neurologic live', 'Calibrare zilnică pe stare', 'Pattern recognition după 7 zile'].map((f, i) => (
-                <div key={i} className="flex items-center gap-2.5 text-xs text-white/30">
-                  <div className="w-1 h-1 rounded-full bg-purple-400/50" />
-                  {f}
-                </div>
-              ))}
-            </div>
-            <Link href="/flow"
-              className="text-xs text-purple-400/60 group-hover:text-purple-400 transition-colors duration-300 flex items-center gap-1.5">
-              Încearcă Flow <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
-            </Link>
-          </div>
-
+          ))}
         </div>
       </section>
 
-      <hr className="fancy max-w-6xl mx-auto" />
+      <hr className="line" style={{ maxWidth: 1100, margin: '0 auto' }}/>
 
-      {/* ══════════════════════════════════════
-          PROBLEMA
-      ══════════════════════════════════════ */}
-      <section className="py-40 px-8 max-w-6xl mx-auto">
-        <div ref={s3.ref} className={`reveal ${s3.visible ? 'in' : ''}`}>
-          <div className="grid md:grid-cols-2 gap-20 items-start">
+      {/* ══ XP & ACHIEVEMENTS ══ */}
+      <section id="progres" style={{ padding: '120px 32px', maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 2 }}>
+        <div ref={s3.ref} className={`reveal ${s3.visible?'in':''}`}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <div style={{ width: 28, height: 1, background: 'rgba(220,130,80,.4)' }}/>
+            <span style={{ fontSize: 11, color: 'rgba(220,130,80,.5)', letterSpacing: '.2em', textTransform: 'uppercase' }}>Progres real</span>
+          </div>
+          <h2 className="serif" style={{ fontSize: 'clamp(2.2rem,5vw,4.5rem)', lineHeight: 1.05, color: 'rgba(255,255,255,.88)', marginBottom: 64 }}>
+            Nu badge-uri random.<br/>
+            <span className="serif-i" style={{ color: 'rgba(255,255,255,.3)' }}>Recompense psihologice reale.</span>
+          </h2>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
+            {/* LEFT — XP System */}
+            <div className={`reveal d1 ${s3.visible?'in':''}`} style={{ background: 'rgba(220,130,80,.04)', border: '0.5px solid rgba(220,130,80,.1)', borderRadius: 20, padding: 36 }}>
+              <div style={{ fontSize: 11, color: 'rgba(220,130,80,.5)', letterSpacing: '.15em', textTransform: 'uppercase', marginBottom: 20 }}>Sistemul XP</div>
+              <p style={{ fontSize: 24, fontWeight: 300, color: 'rgba(255,255,255,.75)', lineHeight: 1.4, marginBottom: 32 }}>
+                XP bazat pe energie,<br/>nu pe timp petrecut.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 32 }}>
+                {[
+                  { label: 'Task completat cu energie scăzută', xp: '+60 XP', note: '3× multiplicator' },
+                  { label: 'Task completat normal', xp: '+20 XP', note: 'baza' },
+                  { label: 'Sesiune voce completă', xp: '+35 XP', note: 'bonus voice' },
+                  { label: 'Streak zi consecutivă', xp: '+15 XP', note: 'per zi' },
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '0.5px solid rgba(255,255,255,.05)' }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: 'rgba(255,255,255,.6)', marginBottom: 2 }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.2)' }}>{item.note}</div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: 'rgba(220,130,80,.9)', fontFamily: 'monospace' }}>{item.xp}</div>
+                  </div>
+                ))}
+              </div>
+              {/* mini XP bar demo */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,.3)', marginBottom: 6 }}>
+                  <span>Focusat · Nv. 4</span><span>500 / 900 XP</span>
+                </div>
+                <div style={{ height: 3, background: 'rgba(255,255,255,.06)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: s3.visible ? '56%' : '0%', background: 'rgba(220,130,80,.7)', borderRadius: 2, transition: 'width 1.2s .5s ease' }}/>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+                  {['Începător','Curios','Constant','Focusat →','Dedicat','Performant','Expert','Maestru'].map((l,i)=>(
+                    <span key={i} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 20, background: i===3?'rgba(220,130,80,.18)':'rgba(255,255,255,.04)', border: `0.5px solid ${i===3?'rgba(220,130,80,.35)':'rgba(255,255,255,.06)'}`, color: i===3?'rgba(220,130,80,.9)':'rgba(255,255,255,.25)' }}>{l}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT — Achievements + Streak */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {/* Streak */}
+              <div className={`reveal d2 ${s3.visible?'in':''}`} style={{ background: 'rgba(180,100,220,.04)', border: '0.5px solid rgba(180,100,220,.1)', borderRadius: 20, padding: 28 }}>
+                <div style={{ fontSize: 11, color: 'rgba(180,100,220,.5)', letterSpacing: '.15em', textTransform: 'uppercase', marginBottom: 16 }}>Streak-uri inteligente</div>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 15, color: 'rgba(255,255,255,.6)', lineHeight: 1.55, fontWeight: 300 }}>
+                      Streak-urile nu se resetează brutal. O zi de grație la 7 zile — pentru că viața nu e liniară.
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                    <div style={{ fontSize: 36, fontWeight: 300, color: 'rgba(180,100,220,.8)', fontFamily: 'monospace' }}>🔥</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.2)', marginTop: 2 }}>zi de grație</div>
+                  </div>
+                </div>
+                {/* streak dots */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 16 }}>
+                  {Array.from({length:7},(_,i)=>(
+                    <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i<5?'rgba(180,100,220,.5)':i===5?'rgba(255,180,60,.4)':'rgba(255,255,255,.08)' }}/>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: 'rgba(255,255,255,.18)' }}>
+                  <span>5 zile la rând</span><span style={{color:'rgba(255,180,60,.4)'}}>zi grație</span><span>mâine</span>
+                </div>
+              </div>
+
+              {/* Badges */}
+              <div className={`reveal d3 ${s3.visible?'in':''}`} style={{ background: 'rgba(255,255,255,.02)', border: '0.5px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 28 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.25)', letterSpacing: '.15em', textTransform: 'uppercase', marginBottom: 20 }}>Achievements deblocate</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+                  {[
+                    { icon:'🌱', label:'Prima sesiune', unlocked:true },
+                    { icon:'🔥', label:'3 zile la rând', unlocked:true },
+                    { icon:'⭐', label:'500 XP', unlocked:true },
+                    { icon:'🏆', label:'O săptămână', unlocked:true },
+                    { icon:'💜', label:'1000 XP', unlocked:false },
+                    { icon:'🚀', label:'O lună', unlocked:false },
+                    { icon:'🎯', label:'Dedicat', unlocked:false },
+                    { icon:'👑', label:'Maestru', unlocked:false },
+                  ].map((b,i)=>(
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', borderRadius: 12, background: b.unlocked?'rgba(220,130,80,.08)':'rgba(255,255,255,.02)', border: `0.5px solid ${b.unlocked?'rgba(220,130,80,.2)':'rgba(255,255,255,.05)'}`, animationName: s3.visible&&b.unlocked?'badge-pop':'none', animationDuration:'.5s', animationDelay:`${i*.06}s`, animationFillMode:'both', animationTimingFunction:'cubic-bezier(.16,1,.3,1)' }}>
+                      <span style={{ fontSize: 20, filter: b.unlocked?'none':'grayscale(1) opacity(.25)' }}>{b.icon}</span>
+                      <span style={{ fontSize: 9, color: b.unlocked?'rgba(220,130,80,.7)':'rgba(255,255,255,.15)', textAlign: 'center', lineHeight: 1.3 }}>{b.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* motivation message */}
+              <div className={`reveal d4 ${s3.visible?'in':''}`} style={{ background: 'rgba(220,130,80,.05)', border: '0.5px solid rgba(220,130,80,.12)', borderRadius: 16, padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ fontSize: 22, flexShrink: 0 }}>🧠</div>
+                <div>
+                  <div style={{ fontSize: 12, color: 'rgba(220,130,80,.7)', marginBottom: 3, fontWeight: 500 }}>Mesaj motivațional adaptat</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,.45)', fontStyle: 'italic', fontWeight: 300 }}>
+                    "Energie scăzută azi — XP dublu pentru fiecare task finalizat."
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <hr className="line" style={{ maxWidth: 1100, margin: '0 auto' }}/>
+
+      {/* ══ PROBLEMA ══ */}
+      <section style={{ padding: '120px 32px', maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 2 }}>
+        <div ref={s4.ref} className={`reveal ${s4.visible?'in':''}`}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'start' }}>
             <div>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-6 h-px bg-white/20" />
-                <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">Problema</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <div style={{ width: 28, height: 1, background: 'rgba(220,130,80,.4)' }}/>
+                <span style={{ fontSize: 11, color: 'rgba(220,130,80,.5)', letterSpacing: '.2em', textTransform: 'uppercase' }}>Problema</span>
               </div>
-              <h2 className="serif text-[clamp(2rem,5vw,4rem)] leading-tight text-white/90 mb-8">
-                Soluțiile existente<br />
-                <span className="serif-italic text-white/35">eșuează după<br />11 minute.</span>
+              <h2 className="serif" style={{ fontSize: 'clamp(2rem,4.5vw,3.8rem)', lineHeight: 1.1, color: 'rgba(255,255,255,.88)', marginBottom: 24 }}>
+                Soluțiile existente<br/>
+                <span className="serif-i" style={{ color: 'rgba(255,255,255,.3)' }}>eșuează după<br/>11 minute.</span>
               </h2>
-              <p className="text-white/35 text-sm leading-relaxed font-light max-w-xs">
-                Fiecare app de productivitate, fiecare tutor AI, fiecare joc educativ e construit pentru un creier neurotipic. Creierul cu ADHD funcționează diferit — nu mai lent.
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,.32)', lineHeight: 1.75, fontWeight: 300, maxWidth: 320 }}>
+                Fiecare app de productivitate, fiecare tutor AI e construit pentru un creier neurotipic. Creierul cu ADHD funcționează diferit — nu mai lent.
               </p>
             </div>
-
-            <div className="space-y-5 pt-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 8 }}>
               {[
-                { label: 'Tutori AI (Khan, Squirrel)', pct: 18, color: 'bg-red-500/40' },
-                { label: 'Apps educative (Duolingo)', pct: 24, color: 'bg-orange-500/40' },
-                { label: 'Apps productivitate', pct: 12, color: 'bg-yellow-500/40' },
-                { label: 'Terapie cognitivă (referință)', pct: 72, color: 'bg-white/20' },
-                { label: 'Wisp + Flow (țintă)', pct: 65, color: 'bg-purple-400/60' },
+                { label: 'Tutori AI (Khan, Squirrel)', pct: 18, c: 'rgba(200,80,80,.5)' },
+                { label: 'Apps educative (Duolingo)', pct: 24, c: 'rgba(200,130,60,.5)' },
+                { label: 'Apps productivitate', pct: 12, c: 'rgba(180,180,60,.4)' },
+                { label: 'Terapie cognitivă (referință)', pct: 72, c: 'rgba(255,255,255,.2)' },
+                { label: 'Wisp + Flow (țintă)', pct: 65, c: 'rgba(220,130,80,.8)' },
               ].map((item, i) => (
-                <div key={i} className={`reveal reveal-d${Math.min(i + 1, 4)} ${s3.visible ? 'in' : ''}`}>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-xs text-white/35 font-light">{item.label}</span>
-                    <span className={`text-xs font-medium ${item.label.includes('Wisp') ? 'text-purple-400' : 'text-white/20'}`}>
-                      {item.pct}%
-                    </span>
+                <div key={i} className={`reveal d${Math.min(i+1,4)} ${s4.visible?'in':''}`}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12, color: item.label.includes('Wisp')?'rgba(220,130,80,.8)':'rgba(255,255,255,.3)' }}>
+                    <span>{item.label}</span><span style={{ fontFamily: 'monospace' }}>{item.pct}%</span>
                   </div>
-                  <div className="h-px bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className={`h-px ${item.color} transition-all duration-1000 delay-300`}
-                      style={{ width: s3.visible ? `${item.pct}%` : '0%' }}
-                    />
+                  <div style={{ height: 2, background: 'rgba(255,255,255,.05)', borderRadius: 1, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: s4.visible?`${item.pct}%`:'0%', background: item.c, borderRadius: 1, transition: `width 1.2s ${.3+i*.1}s ease` }}/>
                   </div>
                 </div>
               ))}
-              <p className="text-white/15 text-xs font-light pt-2">retenție utilizatori la 30 de zile</p>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,.15)', fontWeight: 300, marginTop: 4 }}>retenție utilizatori la 30 de zile</p>
             </div>
           </div>
         </div>
       </section>
 
-      <hr className="fancy max-w-6xl mx-auto" />
+      <hr className="line" style={{ maxWidth: 1100, margin: '0 auto' }}/>
 
-      {/* ══════════════════════════════════════
-          CUM FUNCTIONEAZA
-      ══════════════════════════════════════ */}
-      <section id="cum-functioneaza" className="py-40 px-8 max-w-6xl mx-auto">
-        <div ref={s4.ref} className={`reveal ${s4.visible ? 'in' : ''}`}>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-6 h-px bg-white/20" />
-            <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">Mecanismul</span>
+      {/* ══ CUM FUNCTIONEAZA ══ */}
+      <section style={{ padding: '120px 32px', maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 2 }}>
+        <div ref={s5.ref} className={`reveal ${s5.visible?'in':''}`}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <div style={{ width: 28, height: 1, background: 'rgba(220,130,80,.4)' }}/>
+            <span style={{ fontSize: 11, color: 'rgba(220,130,80,.5)', letterSpacing: '.2em', textTransform: 'uppercase' }}>Mecanismul</span>
           </div>
-          <h2 className="serif text-[clamp(2.5rem,6vw,5rem)] leading-tight text-white/90 mb-20">
-            Memoria care crește<br />
-            <span className="serif-italic text-white/35">odată cu tine.</span>
+          <h2 className="serif" style={{ fontSize: 'clamp(2.2rem,5vw,4.5rem)', lineHeight: 1.05, color: 'rgba(255,255,255,.88)', marginBottom: 80 }}>
+            Memoria care crește<br/>
+            <span className="serif-i" style={{ color: 'rgba(255,255,255,.3)' }}>odată cu tine.</span>
           </h2>
-
-          <div className="grid md:grid-cols-3 gap-16">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 60 }}>
             {[
-              {
-                n: '01', title: 'Observă',
-                body: 'Primele 3 sesiuni construiesc un profil complet — ce îți place, cum gândești, când obosești, ce te blochează.',
-                detail: 'Fiecare alegere în conversație devine semnal. Curriculumul se naște din ce ești — nu din ce decide un minister.'
-              },
-              {
-                n: '02', title: 'Învață',
-                body: 'Fiecare sesiune adaugă date. După 30 de zile știe mai multe despre tine decât orice evaluare psihologică punctuală.',
-                detail: 'Dificultate adaptivă, ton calibrat, momente de pauză — totul invizibil, totul automat.'
-              },
-              {
-                n: '03', title: 'Adaptează',
-                body: 'Curriculum, ton, dificultate, timing — totul se recalibrează automat în jurul profilului tău real.',
-                detail: 'Nu poți copia un an de memorie dintr-o relație reală. Acesta este moatul care crește în timp.'
-              },
-            ].map((s, i) => (
-              <div key={i} className={`reveal reveal-d${i + 1} ${s4.visible ? 'in' : ''}`}>
-                <p className="text-white/10 text-xs font-mono mb-6">{s.n}</p>
-                <h3 className="serif text-2xl text-white/80 mb-4">{s.title}</h3>
-                <p className="text-white/35 text-sm leading-relaxed font-light mb-4">{s.body}</p>
-                <p className="text-white/20 text-xs leading-relaxed font-light italic">{s.detail}</p>
+              { n:'01', title:'Observă', body:'Primele 3 sesiuni construiesc un profil complet — ce îți place, cum gândești, când obosești.', detail:'Fiecare alegere devine semnal. Curriculumul se naște din ce ești.' },
+              { n:'02', title:'Învață', body:'Fiecare sesiune adaugă date. După 30 de zile știe mai multe despre tine decât orice evaluare punctuală.', detail:'Dificultate adaptivă, ton calibrat, momente de pauză — totul invizibil.' },
+              { n:'03', title:'Adaptează', body:'Curriculum, ton, timing — totul se recalibrează automat în jurul profilului tău real.', detail:'Nu poți copia un an de memorie. Acesta este moatul care crește în timp.' },
+            ].map((s,i)=>(
+              <div key={i} className={`reveal d${i+1} ${s5.visible?'in':''}`}>
+                <p style={{ fontSize: 11, color: 'rgba(220,130,80,.25)', fontFamily: 'monospace', marginBottom: 20 }}>{s.n}</p>
+                <h3 className="serif" style={{ fontSize: 26, color: 'rgba(255,255,255,.78)', marginBottom: 14 }}>{s.title}</h3>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,.32)', lineHeight: 1.7, fontWeight: 300, marginBottom: 12 }}>{s.body}</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,.18)', lineHeight: 1.65, fontStyle: 'italic' }}>{s.detail}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <hr className="fancy max-w-6xl mx-auto" />
+      <hr className="line" style={{ maxWidth: 1100, margin: '0 auto' }}/>
 
-      {/* ══════════════════════════════════════
-          PRETURI
-      ══════════════════════════════════════ */}
-      <section id="preturi" className="py-40 px-8 max-w-6xl mx-auto">
-        <div ref={s5.ref} className={`reveal ${s5.visible ? 'in' : ''}`}>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-6 h-px bg-white/20" />
-            <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">Prețuri</span>
+      {/* ══ PRETURI ══ */}
+      <section id="preturi" style={{ padding: '120px 32px', maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 2 }}>
+        <div ref={s6.ref} className={`reveal ${s6.visible?'in':''}`}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <div style={{ width: 28, height: 1, background: 'rgba(220,130,80,.4)' }}/>
+            <span style={{ fontSize: 11, color: 'rgba(220,130,80,.5)', letterSpacing: '.2em', textTransform: 'uppercase' }}>Prețuri</span>
           </div>
-          <h2 className="serif text-[clamp(2.5rem,6vw,5rem)] leading-tight text-white/90 mb-20">
-            Simplu.<br />
-            <span className="serif-italic text-white/35">Fără surprize.</span>
+          <h2 className="serif" style={{ fontSize: 'clamp(2.2rem,5vw,4.5rem)', lineHeight: 1.05, color: 'rgba(255,255,255,.88)', marginBottom: 64 }}>
+            Simplu.<br/><span className="serif-i" style={{ color: 'rgba(255,255,255,.3)' }}>Fără surprize.</span>
           </h2>
-
-          <div className="grid md:grid-cols-3 gap-px bg-white/[0.04] rounded-2xl overflow-hidden">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: 'rgba(220,130,80,.07)', borderRadius: 20, overflow: 'hidden' }}>
             {[
-              {
-                name: 'Wisp', price: '9', label: 'EUR / lună',
-                desc: 'Pentru familii active',
-                features: ['Sesiuni nelimitate', 'Memorie completă', 'Curriculum adaptat', 'Dashboard parental'],
-                cta: 'Începe cu Wisp', href: '/wisp', accent: 'text-indigo-400'
-              },
-              {
-                name: 'Flow', price: '9–18', label: 'EUR / lună',
-                desc: 'Pentru adulți cu ADHD sau burnout',
-                features: ['Profil neurologic live', 'Task breakdown automat', 'Pattern recognition', 'Coaching AI săptămânal'],
-                cta: 'Încearcă Flow', href: '/flow', accent: 'text-purple-400',
-                highlight: true
-              },
-              {
-                name: 'B2B', price: '200–800', label: 'EUR / an / user',
-                desc: 'Școli, universități, cabinete',
-                features: ['Licențe instituționale', 'Dashboard admin', 'Rapoarte agregate', 'Suport dedicat'],
-                cta: 'Contactează-ne', href: 'mailto:hello@wispflow.ai', accent: 'text-emerald-400'
-              },
-            ].map((plan, i) => (
-              <div key={i}
-                className={`bg-[#0a0a0a] p-10 flex flex-col ${plan.highlight ? 'relative' : ''}`}>
-                {plan.highlight && (
-                  <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
-                )}
-                <div className="mb-8">
-                  <p className="text-white/20 text-xs tracking-widest uppercase mb-4">{plan.name}</p>
-                  <div className="flex items-baseline gap-1.5 mb-1">
-                    <span className="serif text-4xl text-white/80">{plan.price}</span>
-                    <span className="text-white/25 text-xs font-light">{plan.label}</span>
+              { name:'Wisp', price:'9', label:'EUR / lună', desc:'Pentru familii active', features:['Sesiuni nelimitate','Memorie completă','XP & achievements','Dashboard parental'], cta:'Începe cu Wisp', href:'/wisp', ac:'rgba(180,140,255,1)', highlight:false },
+              { name:'Flow', price:'9–18', label:'EUR / lună', desc:'Pentru adulți cu ADHD sau burnout', features:['Profil neurologic live','Task breakdown automat','XP & pattern recognition','Coaching AI săptămânal'], cta:'Încearcă Flow', href:'/flow', ac:'rgba(220,130,80,1)', highlight:true },
+              { name:'B2B', price:'200–800', label:'EUR / an / user', desc:'Școli, universități, cabinete', features:['Licențe instituționale','Dashboard admin','Rapoarte agregate','Suport dedicat'], cta:'Contactează-ne', href:'mailto:hello@wispflow.ai', ac:'rgba(160,200,130,1)', highlight:false },
+            ].map((plan,i)=>(
+              <div key={i} style={{ background:'#0d0a0f', padding:40, display:'flex', flexDirection:'column', position:'relative' }}>
+                {plan.highlight&&<div style={{ position:'absolute',top:0,left:0,right:0,height:1,background:'linear-gradient(90deg,transparent,rgba(220,130,80,.5),transparent)' }}/>}
+                <div style={{ marginBottom:28 }}>
+                  <p style={{ fontSize:10,color:'rgba(255,255,255,.2)',letterSpacing:'.15em',textTransform:'uppercase',marginBottom:16 }}>{plan.name}</p>
+                  <div style={{ display:'flex',alignItems:'baseline',gap:6,marginBottom:4 }}>
+                    <span className="serif" style={{ fontSize:40,color:'rgba(255,255,255,.78)' }}>{plan.price}</span>
+                    <span style={{ fontSize:12,color:'rgba(255,255,255,.22)',fontWeight:300 }}>{plan.label}</span>
                   </div>
-                  <p className="text-white/25 text-xs font-light">{plan.desc}</p>
+                  <p style={{ fontSize:12,color:'rgba(255,255,255,.22)',fontWeight:300 }}>{plan.desc}</p>
                 </div>
-                <ul className="space-y-3 mb-10 flex-1">
-                  {plan.features.map((f, j) => (
-                    <li key={j} className="flex items-center gap-3 text-xs text-white/35 font-light">
-                      <div className="w-1 h-1 rounded-full bg-white/20 shrink-0" />
+                <ul style={{ display:'flex',flexDirection:'column',gap:10,marginBottom:32,flex:1 }}>
+                  {plan.features.map((f,j)=>(
+                    <li key={j} style={{ display:'flex',alignItems:'center',gap:10,fontSize:12,color:'rgba(255,255,255,.32)',fontWeight:300 }}>
+                      <div style={{ width:3,height:3,borderRadius:'50%',background:plan.ac.replace('1)','.5)'),flexShrink:0 }}/>
                       {f}
                     </li>
                   ))}
                 </ul>
-                <Link href={plan.href}
-                  className={`text-xs ${plan.accent} border border-white/8 hover:border-white/20 px-5 py-3 rounded-full text-center transition-all duration-300 hover-lift`}>
+                <Link href={plan.href} style={{ fontSize:12,color:plan.ac.replace('1)','.7)'),border:`0.5px solid ${plan.ac.replace('1)','.2)')}`,padding:'11px 20px',borderRadius:40,textAlign:'center',textDecoration:'none',transition:'all .25s',background:plan.ac.replace('1)','.06)') }}
+                  onMouseEnter={(e:any)=>{e.currentTarget.style.background=plan.ac.replace('1)','.14)');e.currentTarget.style.color=plan.ac}}
+                  onMouseLeave={(e:any)=>{e.currentTarget.style.background=plan.ac.replace('1)','.06)');e.currentTarget.style.color=plan.ac.replace('1)','.7)')}}>
                   {plan.cta}
                 </Link>
               </div>
@@ -451,63 +476,58 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <hr className="fancy max-w-6xl mx-auto" />
+      <hr className="line" style={{ maxWidth: 1100, margin: '0 auto' }}/>
 
-      {/* ══════════════════════════════════════
-          CTA FINAL
-      ══════════════════════════════════════ */}
-      <section className="py-40 px-8 max-w-6xl mx-auto">
-        <div ref={s6.ref} className={`reveal ${s6.visible ? 'in' : ''}`}>
-          <div className="max-w-4xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-6 h-px bg-white/20" />
-              <span className="text-white/35 text-xs tracking-[0.2em] uppercase font-light">Construim acum</span>
+      {/* ══ CTA FINAL ══ */}
+      <section style={{ padding: '120px 32px', maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 2 }}>
+        <div ref={s7.ref} className={`reveal ${s7.visible?'in':''}`}>
+          <div style={{ maxWidth: 900 }}>
+            <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:20 }}>
+              <div style={{ width:28,height:1,background:'rgba(220,130,80,.4)' }}/>
+              <span style={{ fontSize:11,color:'rgba(220,130,80,.5)',letterSpacing:'.2em',textTransform:'uppercase' }}>Construim acum</span>
             </div>
-            <h2 className="serif text-[clamp(3rem,8vw,7rem)] leading-[0.92] tracking-tight text-white/90 mb-12">
-              Copiii cu ADHD<br />
-              nu au nevoie de<br />
-              mai multă disciplină.<br />
-              <span className="serif-italic text-white/30">Au nevoie de un<br />sistem care îi înțelege.</span>
+            <h2 className="serif" style={{ fontSize:'clamp(2.8rem,7.5vw,6.5rem)',lineHeight:.93,letterSpacing:'-.02em',color:'rgba(255,255,255,.9)',marginBottom:56 }}>
+              Copiii cu ADHD<br/>
+              nu au nevoie de<br/>
+              mai multă disciplină.<br/>
+              <span className="serif-i" style={{ color:'rgba(220,130,80,.4)' }}>Au nevoie de un<br/>sistem care îi înțelege.</span>
             </h2>
-            <div className="flex flex-col sm:flex-row items-start gap-4">
-              <Link href="/wisp"
-                className="group flex items-center gap-3 bg-white text-black text-sm font-medium px-8 py-4 rounded-full hover:bg-white/90 transition-all duration-300 hover-lift">
-                Wisp pentru copilul tău
-                <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
+            <div style={{ display:'flex',alignItems:'center',gap:12,flexWrap:'wrap' }}>
+              <Link href="/wisp" style={{ display:'flex',alignItems:'center',gap:10,background:'rgba(220,130,80,1)',color:'#0d0a0f',fontSize:14,fontWeight:500,padding:'14px 28px',borderRadius:40,textDecoration:'none',transition:'all .25s' }}
+                onMouseEnter={(e:any)=>{e.currentTarget.style.background='rgba(240,150,90,1)';e.currentTarget.style.transform='translateY(-2px)'}}
+                onMouseLeave={(e:any)=>{e.currentTarget.style.background='rgba(220,130,80,1)';e.currentTarget.style.transform='none'}}>
+                Wisp pentru copilul tău <span>→</span>
               </Link>
-              <Link href="/flow"
-                className="group flex items-center gap-3 border border-white/10 hover:border-white/25 text-white/50 hover:text-white text-sm px-8 py-4 rounded-full transition-all duration-300">
-                Flow pentru tine
-                <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
-              </Link>
-              <Link href="/wisp-teen"
-                className="group flex items-center gap-3 border border-white/10 hover:border-white/25 text-white/50 hover:text-white text-sm px-8 py-4 rounded-full transition-all duration-300">
-                Wisp Teen
-                <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
-              </Link>
+              {[['Flow pentru tine','/flow'],['Wisp Teen','/wisp-teen']].map(([label,href])=>(
+                <Link key={href} href={href} style={{ fontSize:13,color:'rgba(255,255,255,.35)',border:'0.5px solid rgba(255,255,255,.1)',padding:'14px 24px',borderRadius:40,textDecoration:'none',transition:'all .25s' }}
+                  onMouseEnter={(e:any)=>{e.currentTarget.style.color='rgba(255,255,255,.75)';e.currentTarget.style.borderColor='rgba(255,255,255,.25)'}}
+                  onMouseLeave={(e:any)=>{e.currentTarget.style.color='rgba(255,255,255,.35)';e.currentTarget.style.borderColor='rgba(255,255,255,.1)'}}>
+                  {label}
+                </Link>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-white/[0.04] py-12 px-8">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <footer style={{ borderTop:'0.5px solid rgba(220,130,80,.08)',padding:'40px 32px',position:'relative',zIndex:2 }}>
+        <div style={{ maxWidth:1100,margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:20 }}>
           <div>
-            <p className="text-white/50 text-sm font-medium mb-1">Wisp+Flow</p>
-            <p className="text-white/15 text-xs font-light">
-              Construit pentru minți care funcționează altfel. © 2026
-            </p>
+            <p style={{ fontSize:14,fontWeight:500,color:'rgba(255,255,255,.5)',marginBottom:4 }}>Wisp<span style={{color:'rgba(220,130,80,.4)'}}>+</span>Flow</p>
+            <p style={{ fontSize:11,color:'rgba(255,255,255,.15)',fontWeight:300 }}>Construit pentru minți care funcționează altfel. © 2026</p>
           </div>
-          <div className="flex items-center gap-8 text-xs text-white/20 font-light">
-            <Link href="/wisp" className="hover:text-white/50 transition-colors">Wisp Junior</Link>
-            <Link href="/wisp-teen" className="hover:text-white/50 transition-colors">Wisp Teen</Link>
-            <Link href="/flow" className="hover:text-white/50 transition-colors">Flow</Link>
-            <a href="mailto:hello@wispflow.ai" className="hover:text-white/50 transition-colors">Contact</a>
+          <div style={{ display:'flex',alignItems:'center',gap:28 }}>
+            {[['Wisp Junior','/wisp'],['Wisp Teen','/wisp-teen'],['Flow','/flow'],['Contact','mailto:hello@wispflow.ai']].map(([label,href])=>(
+              <Link key={href} href={href} style={{ fontSize:12,color:'rgba(255,255,255,.2)',textDecoration:'none',transition:'color .2s' }}
+                onMouseEnter={(e:any)=>e.currentTarget.style.color='rgba(255,255,255,.5)'}
+                onMouseLeave={(e:any)=>e.currentTarget.style.color='rgba(255,255,255,.2)'}>
+                {label}
+              </Link>
+            ))}
           </div>
         </div>
       </footer>
-
     </div>
   )
 }
