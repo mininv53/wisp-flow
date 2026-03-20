@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Send, Timer, CheckCircle, Circle, Zap, RotateCcw, TrendingUp, Brain } from 'lucide-react'
+import { Send, Timer, CheckCircle, Circle, Zap, RotateCcw, TrendingUp, Brain, Star } from 'lucide-react'
+import XPBar from './XPBar'
+import { calcXP, updateStreak, checkNewBadges, getMotivationMessage, type MotivationState } from '../lib/motivation'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -22,7 +24,12 @@ interface Session {
   startHour: number
 }
 
-export default function Flow() {
+const defaultMotivation: MotivationState = {
+  xp: 0, level: 1, streak: 0, lastActiveDate: '',
+  graceDayUsed: false, totalSessions: 0, badges: [], weeklyXP: []
+}
+
+export default function Flow({ userId }: { userId?: string }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,7 +40,10 @@ export default function Flow() {
   const [mood, setMood] = useState('')
   const [sessions, setSessions] = useState<Session[]>([])
   const [sessionStart] = useState(new Date().getHours())
-  const [activeTab, setActiveTab] = useState<'tasks' | 'pattern'>('tasks')
+  const [sessionStartTime] = useState(Date.now())
+  const [activeTab, setActiveTab] = useState<'tasks' | 'pattern' | 'xp'>('tasks')
+  const [motivation, setMotivation] = useState<MotivationState>(defaultMotivation)
+  const [newBadges, setNewBadges] = useState<string[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -42,12 +52,13 @@ export default function Flow() {
     const savedSessions = localStorage.getItem('flow-sessions')
     const savedMood = localStorage.getItem('flow-mood-today')
     const savedDate = localStorage.getItem('flow-date')
+    const savedMotivation = localStorage.getItem('flow-motivation')
     const today = new Date().toLocaleDateString('ro-RO')
 
     if (savedSessions) setSessions(JSON.parse(savedSessions))
     if (savedTasks) setTasks(JSON.parse(savedTasks))
+    if (savedMotivation) setMotivation(JSON.parse(savedMotivation))
 
-    // Reset check-in daily
     if (savedDate !== today) {
       localStorage.setItem('flow-date', today)
       localStorage.removeItem('flow-mood-today')
@@ -96,16 +107,36 @@ export default function Flow() {
   }
 
   const saveSession = (currentMood: string, currentTasks: Task[]) => {
+    const sessionMinutes = Math.floor((Date.now() - sessionStartTime) / 60000)
+    const completedCount = currentTasks.filter(t => t.done).length
+
+    let updated = updateStreak(motivation)
+    const earned = calcXP(completedCount, currentMood, sessionMinutes)
+    updated = {
+      ...updated,
+      xp: updated.xp + earned,
+      totalSessions: updated.totalSessions + 1,
+      weeklyXP: [...(updated.weeklyXP ?? []).slice(-6), earned]
+    }
+
+    const unlocked = checkNewBadges(updated)
+    updated.badges = [...updated.badges, ...unlocked]
+    setNewBadges(unlocked)
+    setMotivation(updated)
+    localStorage.setItem('flow-motivation', JSON.stringify(updated))
+
     const newSession: Session = {
       date: new Date().toLocaleDateString('ro-RO'),
       mood: currentMood,
-      tasksCompleted: currentTasks.filter(t => t.done).length,
+      tasksCompleted: completedCount,
       totalTasks: currentTasks.length,
       startHour: sessionStart
     }
-    const updated = [...sessions.slice(-13), newSession]
-    setSessions(updated)
-    localStorage.setItem('flow-sessions', JSON.stringify(updated))
+    const updatedSessions = [...sessions.slice(-13), newSession]
+    setSessions(updatedSessions)
+    localStorage.setItem('flow-sessions', JSON.stringify(updatedSessions))
+
+    return earned
   }
 
   const getPattern = () => {
@@ -152,6 +183,7 @@ export default function Flow() {
 
     const pattern = getPattern()
     const patternContext = pattern ? `\n\nPattern detectat: ${pattern}` : ''
+    const motivationMsg = getMotivationMessage(motivation, emoji)
 
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -159,8 +191,10 @@ export default function Flow() {
       body: JSON.stringify({
         messages: [{ role: 'user', content: emoji }],
         systemContext: `Utilizatorul se simte ${moodMap[emoji] || 'ok'} azi.${patternContext}
-        Calibrează-ți răspunsul după această stare. Dacă e obosit, sugerează taskuri mici. Dacă e motivat, propune ceva ambițios.
-        Fii scurt (max 3 propoziții), cald, și direct. Menționează pattern-ul dacă există. Întreabă ce are de făcut azi.`
+        Context motivație: ${motivationMsg}. Streak curent: ${motivation.streak} zile. Nivel: ${motivation.level}.
+        Dacă energia e scăzută, menționează că XP-ul e mai mare azi (mood multiplier activ).
+        Calibrează răspunsul după stare. Dacă e obosit, sugerează taskuri mici. Dacă e motivat, propune ceva ambițios.
+        Fii scurt (max 3 propoziții), cald, și direct. Întreabă ce are de făcut azi.`
       })
     })
 
@@ -246,7 +280,6 @@ export default function Flow() {
             )}
           </div>
 
-          {/* Circular progress */}
           <div className="relative w-24 h-24 mx-auto mb-3">
             <svg className="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
               <circle cx="48" cy="48" r="40" fill="none" stroke="#374151" strokeWidth="6" />
@@ -291,26 +324,32 @@ export default function Flow() {
         </div>
 
         {/* Tabs */}
-        {(tasks.length > 0 || sessions.length >= 2) && (
-          <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
-            <button
-              onClick={() => setActiveTab('tasks')}
-              className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1 ${
-                activeTab === 'tasks' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              <CheckCircle size={11} /> Taskuri
-            </button>
-            <button
-              onClick={() => setActiveTab('pattern')}
-              className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1 ${
-                activeTab === 'pattern' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              <Brain size={11} /> Pattern
-            </button>
-          </div>
-        )}
+        <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
+          <button
+            onClick={() => setActiveTab('tasks')}
+            className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1 ${
+              activeTab === 'tasks' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <CheckCircle size={11} /> Taskuri
+          </button>
+          <button
+            onClick={() => setActiveTab('pattern')}
+            className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1 ${
+              activeTab === 'pattern' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <Brain size={11} /> Pattern
+          </button>
+          <button
+            onClick={() => setActiveTab('xp')}
+            className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1 ${
+              activeTab === 'xp' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <Star size={11} /> XP
+          </button>
+        </div>
 
         {/* Tasks tab */}
         {activeTab === 'tasks' && tasks.length > 0 && (
@@ -319,7 +358,6 @@ export default function Flow() {
               <p className="text-xs text-gray-400 uppercase tracking-wide">Taskuri</p>
               <span className="text-xs text-purple-400 font-medium">{completedTasks}/{tasks.length}</span>
             </div>
-            {/* Progress bar */}
             <div className="w-full bg-gray-700 rounded-full h-1 mb-3">
               <div
                 className="bg-purple-500 h-1 rounded-full transition-all duration-500"
@@ -356,10 +394,9 @@ export default function Flow() {
               <TrendingUp size={12} className="text-purple-400" />
               <p className="text-xs text-gray-400 uppercase tracking-wide">Pattern recunoscut</p>
             </div>
-
             {sessions.length < 3 ? (
               <p className="text-xs text-gray-500 leading-relaxed">
-                Flow are nevoie de cel puțin 3 sesiuni ca să îți detecteze pattern-ul. Mai ai {3 - sessions.length} sesiuni.
+                Flow are nevoie de cel puțin 3 sesiuni. Mai ai {3 - sessions.length} sesiuni.
               </p>
             ) : (
               <>
@@ -388,17 +425,37 @@ export default function Flow() {
           </div>
         )}
 
+        {/* XP tab */}
+        {activeTab === 'xp' && (
+          <div className="flex-1 overflow-y-auto">
+            <XPBar state={motivation} newBadges={newBadges} />
+            {mood && (
+              <div className="mt-3 bg-gray-800 rounded-xl p-3">
+                <p className="text-xs text-gray-400 mb-1">Multiplicator azi</p>
+                <p className="text-xs text-purple-300">
+                  {mood === '😴' || mood === '😐' || mood === '😰'
+                    ? `${mood} energie scăzută → XP x${mood === '😴' ? '1.5' : mood === '😐' ? '1.2' : '1.3'}`
+                    : `${mood} energie bună → XP x${mood === '🔥' ? '0.8' : '1.0'}`
+                  }
+                </p>
+                <p className="text-xs text-gray-500 mt-1">XP crește mai mult când lucrezi obosit.</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Reset */}
         <button
           onClick={() => {
-            saveSession(mood, tasks)
+            const earned = saveSession(mood, tasks)
             localStorage.removeItem('flow-messages')
             localStorage.removeItem('flow-tasks')
             localStorage.removeItem('flow-mood-today')
-            setMessages([{ role: 'assistant', content: 'Zi nouă, start proaspăt! Cum te simți azi? 😊' }])
+            setMessages([{ role: 'assistant', content: `Zi salvată! +${earned} XP câștigat. Zi nouă, start proaspăt! 😊` }])
             setTasks([])
             setCheckedIn(false)
             setMood('')
+            setNewBadges([])
           }}
           className="mt-auto text-xs text-gray-600 hover:text-gray-400 transition-all flex items-center justify-center gap-1 py-1"
         >
@@ -408,20 +465,25 @@ export default function Flow() {
 
       {/* Chat */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
         <div className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-sm font-semibold text-white">Flow AI</h1>
             <p className="text-xs text-gray-500">Partenerul tău de productivitate</p>
           </div>
-          {sessions.length >= 3 && (
-            <div className="text-xs text-gray-500 bg-gray-800 px-3 py-1.5 rounded-full">
-              {sessions.length} sesiuni înregistrate
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {motivation.streak > 0 && (
+              <span className="text-xs text-amber-400 bg-gray-800 px-3 py-1.5 rounded-full">
+                🔥 {motivation.streak} zile
+              </span>
+            )}
+            {sessions.length >= 3 && (
+              <div className="text-xs text-gray-500 bg-gray-800 px-3 py-1.5 rounded-full">
+                {sessions.length} sesiuni
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -440,7 +502,6 @@ export default function Flow() {
             </div>
           ))}
 
-          {/* Mood picker */}
           {!checkedIn && (
             <div className="flex justify-start">
               <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center mr-2 mt-1 shrink-0">
@@ -454,7 +515,6 @@ export default function Flow() {
                       key={emoji}
                       onClick={() => handleMood(emoji)}
                       className="text-2xl hover:scale-125 transition-transform active:scale-95"
-                      title={emoji}
                     >
                       {emoji}
                     </button>
@@ -464,7 +524,6 @@ export default function Flow() {
             </div>
           )}
 
-          {/* Loading dots */}
           {loading && (
             <div className="flex justify-start">
               <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center mr-2 mt-1 shrink-0">
@@ -482,7 +541,6 @@ export default function Flow() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
         <div className="p-4 border-t border-gray-800 bg-gray-950">
           <div className="flex gap-2 items-end">
             <input
@@ -500,7 +558,7 @@ export default function Flow() {
               <Send size={18} />
             </button>
           </div>
-          <p className="text-xs text-gray-600 mt-2 text-center">Enter pentru trimite · Resetează ziua ca să salvezi sesiunea</p>
+          <p className="text-xs text-gray-600 mt-2 text-center">Enter pentru trimite · Resetează ziua ca să salvezi sesiunea și XP-ul</p>
         </div>
       </div>
     </div>
