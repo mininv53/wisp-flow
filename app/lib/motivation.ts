@@ -9,6 +9,14 @@ export interface MotivationState {
   weeklyXP: number[]
 }
 
+export interface StyleProfile {
+  tone: 'formal' | 'informal' | 'unknown'
+  avgMessageLength: 'short' | 'medium' | 'long'
+  emojis: string[]
+  language: 'ro' | 'en' | 'mix'
+  sampleMessages: string[]
+}
+
 export const LEVELS = [
   { level: 1, name: 'Începător',  minXP: 0    },
   { level: 2, name: 'Curios',     minXP: 100  },
@@ -26,17 +34,18 @@ export const MOOD_MULTIPLIER: Record<string, number> = {
   '😴': 1.5,
   '😤': 1.3,
   '🔥': 0.8,
+  '😰': 1.3,
 }
 
 export const BADGES = [
-  { id: 'first_session', label: 'Prima sesiune',  condition: (s: MotivationState) => s.totalSessions >= 1 },
-  { id: 'streak_3',      label: '3 zile la rând', condition: (s: MotivationState) => s.streak >= 3        },
-  { id: 'streak_7',      label: 'O săptămână',    condition: (s: MotivationState) => s.streak >= 7        },
-  { id: 'streak_30',     label: 'O lună',         condition: (s: MotivationState) => s.streak >= 30       },
-  { id: 'level_3',       label: 'Constant',       condition: (s: MotivationState) => s.level >= 3         },
-  { id: 'level_5',       label: 'Dedicat',        condition: (s: MotivationState) => s.level >= 5         },
-  { id: 'xp_500',        label: '500 XP',         condition: (s: MotivationState) => s.xp >= 500          },
-  { id: 'xp_1000',       label: '1000 XP',        condition: (s: MotivationState) => s.xp >= 1000         },
+  { id: 'first_session', label: 'Prima sesiune',  condition: (s: MotivationState) => s.totalSessions >= 1  },
+  { id: 'streak_3',      label: '3 zile la rând', condition: (s: MotivationState) => s.streak >= 3         },
+  { id: 'streak_7',      label: 'O săptămână',    condition: (s: MotivationState) => s.streak >= 7         },
+  { id: 'streak_30',     label: 'O lună',         condition: (s: MotivationState) => s.streak >= 30        },
+  { id: 'level_3',       label: 'Constant',       condition: (s: MotivationState) => s.level >= 3          },
+  { id: 'level_5',       label: 'Dedicat',        condition: (s: MotivationState) => s.level >= 5          },
+  { id: 'xp_500',        label: '500 XP',         condition: (s: MotivationState) => s.xp >= 500           },
+  { id: 'xp_1000',       label: '1000 XP',        condition: (s: MotivationState) => s.xp >= 1000          },
 ]
 
 export function calcXP(tasksCompleted: number, mood: string, sessionMinutes: number): number {
@@ -88,17 +97,9 @@ export function checkNewBadges(state: MotivationState): string[] {
 export function getMotivationMessage(state: MotivationState, mood: string): string {
   if (state.streak >= 7) return `${state.streak} zile consecutiv. Creierul tău s-a reconfigurat deja.`
   if (state.streak >= 3) return `3 zile la rând. Obiceiul se formează.`
-  if (mood === '😴' || mood === '😐') return `Energie scăzută azi — XP dublu pentru fiecare task finalizat.`
+  if (mood === '😴' || mood === '😐') return `Energie scăzută azi — XP mai mare pentru fiecare task finalizat.`
   if (mood === '🔥') return `Energie maximă. Zi bună pentru taskuri dificile.`
   return `Ziua ${state.streak > 0 ? state.streak : 1} din seria ta.`
-}
-
-export interface StyleProfile {
-  tone: 'formal' | 'informal' | 'unknown'
-  avgMessageLength: 'short' | 'medium' | 'long'
-  emojis: string[]
-  language: 'ro' | 'en' | 'mix'
-  sampleMessages: string[]
 }
 
 export function analyzeStyle(messages: string[]): StyleProfile {
@@ -109,29 +110,44 @@ export function analyzeStyle(messages: string[]): StyleProfile {
 
   const text = messages.join(' ')
 
-  // Detectare ton
-  const informalSignals = ['bă', 'frate', 'ok', 'oke', 'da', 'nu', 'mișto', 'tare', 'super', 'hai', 'lasă', 'uite', 'bre', 'ngl', 'tbh', 'lol', 'omg']
-  const informalCount = informalSignals.filter(w => text.toLowerCase().includes(w)).length
+  const informalSignals = [
+    'bă', 'ba', 'frate', 'frati', 'ok', 'oke', 'okei', 'da', 'nu', 'mișto', 'misto',
+    'tare', 'super', 'hai', 'lasă', 'lasa', 'uite', 'bre', 'ngl', 'tbh', 'lol', 'omg',
+    'wtf', 'bruh', 'yoo', 'yo', 'gg', 'rip', 'fr', 'nah', 'yep', 'yup', 'hmm',
+    'pff', 'ahahah', 'haha', 'hehe', 'xd', ':)', ':D', 'wdym', 'imo', 'btw',
+    'omg', 'bro', 'sis', 'dude', 'mă', 'ma', 'dom', 'domne', 'boss', 'șefu', 'sefu'
+  ]
+  const informalCount = informalSignals.filter(w =>
+    text.toLowerCase().split(/\s+/).includes(w) || text.toLowerCase().includes(w)
+  ).length
   const tone = informalCount >= 2 ? 'informal' : 'formal'
 
-  // Lungime medie
   const avgLen = messages.reduce((sum, m) => sum + m.length, 0) / messages.length
   const avgMessageLength = avgLen < 30 ? 'short' : avgLen < 100 ? 'medium' : 'long'
 
-  // Emoji-uri folosite
   const emojiRegex = /[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu
   const foundEmojis = [...new Set(text.match(emojiRegex) ?? [])]
 
-  // Limbă
-  const roWords = ['și', 'că', 'nu', 'da', 'este', 'sunt', 'am', 'eu', 'tu', 'hai', 'bine', 'azi', 'acum', 'fac', 'ai', 'îmi', 'îți']
-  const enWords = ['the', 'is', 'are', 'and', 'you', 'ok', 'okay', 'yeah', 'nope', 'cant', 'dont', 'im', 'its']
-  const roCount = roWords.filter(w => text.toLowerCase().includes(w)).length
-  const enCount = enWords.filter(w => text.toLowerCase().includes(w)).length
+  const roWords = ['și', 'si', 'că', 'ca', 'nu', 'da', 'este', 'sunt', 'am', 'eu',
+    'tu', 'hai', 'bine', 'azi', 'acum', 'fac', 'ai', 'îmi', 'imi', 'îți', 'iti',
+    'mă', 'ma', 'îl', 'il', 'ea', 'el', 'noi', 'voi', 'ei', 'ele', 'ce', 'cum',
+    'când', 'cand', 'unde', 'cine', 'care', 'tot', 'toți', 'toti', 'toate']
+  const enWords = ['the', 'is', 'are', 'and', 'you', 'ok', 'okay', 'yeah', 'nope',
+    'cant', 'dont', 'im', 'its', 'my', 'me', 'we', 'they', 'he', 'she', 'what',
+    'when', 'where', 'how', 'why', 'because', 'so', 'but', 'if', 'then', 'now',
+    'just', 'like', 'get', 'got', 'have', 'has', 'need', 'want', 'know', 'think']
+
+  const words = text.toLowerCase().split(/\s+/)
+  const roCount = roWords.filter(w => words.includes(w)).length
+  const enCount = enWords.filter(w => words.includes(w)).length
   const language = roCount > enCount * 2 ? 'ro' : enCount > roCount * 2 ? 'en' : 'mix'
 
   return {
-    tone, avgMessageLength, emojis: foundEmojis.slice(0, 5),
-    language, sampleMessages: messages.slice(-3)
+    tone,
+    avgMessageLength,
+    emojis: foundEmojis.slice(0, 5),
+    language,
+    sampleMessages: messages.slice(-3)
   }
 }
 
@@ -140,33 +156,41 @@ export function buildStylePrompt(profile: StyleProfile): string {
 
   const parts: string[] = []
 
+  parts.push('\n\n--- ADAPTARE STIL UTILIZATOR (OBLIGATORIU) ---')
+  parts.push('Ești un prieten, NU un asistent AI corporativ. Vorbești exact cum vorbește utilizatorul.')
+
   if (profile.tone === 'informal') {
-    parts.push('Vorbește casual și relaxat, ca un prieten bun. Fără limbaj corporativ sau formal.')
+    parts.push('TON: Casual, relaxat, ca un prieten bun. Fără "Bineînțeles!", "Cu plăcere!", "Înțeleg că..." — acestea sună a robot. Vorbești natural.')
   } else {
-    parts.push('Vorbește profesional dar cald, fără a fi rece.')
+    parts.push('TON: Calm și direct, fără a fi rece sau corporativ.')
   }
 
   if (profile.avgMessageLength === 'short') {
-    parts.push('Mesajele tale să fie SCURTE — maxim 2-3 propoziții. Utilizatorul preferă răspunsuri concise.')
+    parts.push('LUNGIME: Mesaje SCURTE — maxim 2-3 propoziții. Utilizatorul scrie scurt, tu la fel.')
   } else if (profile.avgMessageLength === 'long') {
-    parts.push('Poți fi mai detaliat — utilizatorul scrie mult și apreciază explicații complete.')
+    parts.push('LUNGIME: Poți fi detaliat — utilizatorul apreciază explicații complete.')
+  } else {
+    parts.push('LUNGIME: Mediu — 3-5 propoziții, direct la subiect.')
   }
 
   if (profile.emojis.length > 0) {
-    parts.push(`Folosește emoji-uri natural în răspunsuri, în special: ${profile.emojis.join(' ')}`)
+    parts.push(`EMOJI: Folosește natural ${profile.emojis.join(' ')} — exact ce folosește și el/ea.`)
   }
 
   if (profile.language === 'en') {
-    parts.push('Răspunde în engleză.')
+    parts.push('LIMBĂ: Răspunde în engleză.')
   } else if (profile.language === 'mix') {
-    parts.push('Utilizatorul mixează română și engleză — poți face la fel natural.')
+    parts.push('LIMBĂ: Utilizatorul mixează română și engleză — poți face la fel, natural.')
   } else {
-    parts.push('Răspunde în română.')
+    parts.push('LIMBĂ: Răspunde în română.')
   }
 
   if (profile.sampleMessages.length > 0) {
-    parts.push(`Stilul utilizatorului din mesaje recente: "${profile.sampleMessages[profile.sampleMessages.length - 1]}"`)
+    parts.push(`EXEMPLU din stilul lui: "${profile.sampleMessages[profile.sampleMessages.length - 1]}"`)
+    parts.push('Adaptează-ți răspunsul să sune similar ca stil, nu ca conținut.')
   }
 
-  return '\n\nADAPTARE STIL UTILIZATOR:\n' + parts.join('\n')
+  parts.push('--- SFÂRȘIT ADAPTARE STIL ---')
+
+  return parts.join('\n')
 }
