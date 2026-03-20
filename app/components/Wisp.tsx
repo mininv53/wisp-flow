@@ -1,5 +1,9 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
+import XPBar from './XPBar'
+import AchievementPopup from './AchievementPopup'
+import { useAchievements } from '../lib/useAchievements'
+import { calcXP, updateStreak, checkNewBadges, type MotivationState } from '../lib/motivation'
 
 type Mood = 'happy' | 'excited' | 'think' | 'sleepy' | 'sad' | 'laugh' | 'love'
 type VoiceMode = 'idle' | 'recording' | 'analyzing' | 'responding'
@@ -81,6 +85,10 @@ function Burst({ mood, trigger }: { mood:Mood; trigger:number }) {
   )
 }
 
+const defaultMotivation: MotivationState = {
+  xp:0,level:1,streak:0,lastActiveDate:'',graceDayUsed:false,totalSessions:0,badges:[],weeklyXP:[]
+}
+
 export default function Wisp({ userId }: { userId?: string }) {
   const [msgs, setMsgs] = useState<Msg[]>([{role:'bot',text:'Salut! Sunt WISP, prietenul tău magic! ✨ Ce aventură explorăm azi?',mood:'happy',ts:'acum'}])
   const [mood, setMood] = useState<Mood>('happy')
@@ -93,13 +101,43 @@ export default function Wisp({ userId }: { userId?: string }) {
   const [status, setStatus] = useState('gata')
   const [burst, setBurst] = useState(0)
   const [isListening, setIsListening] = useState(false)
+  const [showXP, setShowXP] = useState(false)
+  const [motivation, setMotivation] = useState<MotivationState>(() => {
+    if (typeof window === 'undefined') return defaultMotivation
+    const s = localStorage.getItem('wisp-motivation')
+    return s ? JSON.parse(s) : defaultMotivation
+  })
+  const [newBadges, setNewBadges] = useState<string[]>([])
+  const { current: achievement, dismiss, checkAndShow } = useAchievements()
   const chatRef = useRef<HTMLDivElement>(null)
   const voiceBuffer = useRef('')
   const recRef = useRef<any>(null)
+  const sessionStart = useRef(Date.now())
+
+  // voice leak fix
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel()
+      try { recRef.current?.stop() } catch(e) {}
+    }
+  }, [])
 
   useEffect(()=>{ if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight },[msgs,isTyping])
 
   const now = () => new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
+
+  const awardXP = useCallback((tasksCompleted: number) => {
+    const mins = Math.floor((Date.now() - sessionStart.current) / 60000)
+    const earned = calcXP(tasksCompleted, '😊', mins)
+    let updated = updateStreak(motivation)
+    updated = { ...updated, xp: updated.xp + earned, totalSessions: updated.totalSessions + 1, weeklyXP: [...(updated.weeklyXP||[]).slice(-6), earned] }
+    const unlocked = checkNewBadges(updated)
+    updated.badges = [...updated.badges, ...unlocked]
+    setNewBadges(unlocked)
+    setMotivation(updated)
+    localStorage.setItem('wisp-motivation', JSON.stringify(updated))
+    checkAndShow(motivation, updated, earned, {})
+  }, [motivation, checkAndShow])
 
   const wispSpeak = useCallback((text:string, m:Mood, onDone?:()=>void) => {
     const synth=window.speechSynthesis; synth.cancel()
@@ -131,6 +169,7 @@ export default function Wisp({ userId }: { userId?: string }) {
     setIsTyping(false)
     setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice}])
     setMood(reply.mood); setBurst(b=>b+1)
+    awardXP(1)
     wispSpeak(reply.text,reply.mood)
   }
 
@@ -164,6 +203,7 @@ export default function Wisp({ userId }: { userId?: string }) {
     const reply=await getReply(msgs,text)
     setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice:true}])
     setMood(reply.mood); setVoText(reply.text); setBurst(b=>b+1)
+    awardXP(1)
     setVoiceMode('responding')
     wispSpeak(reply.text,reply.mood,()=>{setVoiceMode('idle');setVoText('Ce mai vrei să îmi spui? 🌟')})
   }
@@ -213,10 +253,21 @@ export default function Wisp({ userId }: { userId?: string }) {
           <span style={{fontSize:14,fontWeight:600,color:'#c8c5f5',letterSpacing:'.06em'}}>WISP</span>
           <span style={{fontSize:11,color:'rgba(127,119,221,.5)',background:'rgba(127,119,221,.1)',padding:'2px 8px',borderRadius:10,border:'0.5px solid rgba(127,119,221,.2)'}}>Junior · 6-12 ani</span>
         </div>
-        <button onClick={()=>setVoiceOpen(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:20,fontSize:12,border:'0.5px solid rgba(127,119,221,.3)',background:'rgba(127,119,221,.1)',color:'#c8c5f5',cursor:'pointer'}}>
-          🎤 <span>Voice</span>
-        </button>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <button onClick={()=>setShowXP(v=>!v)} style={{display:'flex',alignItems:'center',gap:4,padding:'4px 10px',borderRadius:12,fontSize:11,border:'0.5px solid rgba(127,119,221,.25)',background:'rgba(127,119,221,.08)',color:'#c8c5f5',cursor:'pointer'}}>
+            ⚡ {motivation.xp} XP
+          </button>
+          <button onClick={()=>setVoiceOpen(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:20,fontSize:12,border:'0.5px solid rgba(127,119,221,.3)',background:'rgba(127,119,221,.1)',color:'#c8c5f5',cursor:'pointer'}}>
+            🎤 <span>Voice</span>
+          </button>
+        </div>
       </div>
+
+      {showXP && (
+        <div style={{padding:'0 18px 12px',position:'relative',zIndex:1}}>
+          <XPBar state={motivation} newBadges={newBadges}/>
+        </div>
+      )}
 
       <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'8px 0 12px',gap:8,flexShrink:0,position:'relative',zIndex:1}}>
         <div style={{position:'relative',animation:'float 3s ease-in-out infinite'}}>
@@ -292,6 +343,8 @@ export default function Wisp({ userId }: { userId?: string }) {
           </div>
         </div>
       )}
+
+      <AchievementPopup achievement={achievement} onDone={dismiss} theme="dark"/>
     </div>
   )
 }
