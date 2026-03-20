@@ -10,62 +10,57 @@ type VoiceMode = 'idle' | 'recording' | 'analyzing' | 'responding'
 interface Msg { role: 'user' | 'bot'; text: string; mood: Mood; ts: string; isVoice?: boolean }
 
 const MOODS: Record<Mood,{sym:string,label:string,color:string,bursts:string[]}> = {
-  idle:    { sym:'◉', label:'online',   color:'#1D9E75', bursts:['◉','○','◌','◦'] },
-  process: { sym:'◈', label:'process',  color:'#EF9F27', bursts:['◈','◇','◆','▸'] },
-  focus:   { sym:'▣', label:'focus',    color:'#378ADD', bursts:['▣','▪','▸','◈'] },
-  low:     { sym:'▱', label:'low',      color:'#888780', bursts:['▱','▰','▯','▮'] },
-  error:   { sym:'⊗', label:'error',    color:'#E24B4A', bursts:['⊗','✕','×','⊘'] },
-  boost:   { sym:'▲', label:'boost',    color:'#1D9E75', bursts:['▲','△','▴','◆'] },
-  sync:    { sym:'⟳', label:'sync',     color:'#AFA9EC', bursts:['⟳','◎','○','◌'] },
+  idle:    { sym:'◎', label:'chill',   color:'rgba(160,170,255,.8)', bursts:['◎','○','·','◦'] },
+  process: { sym:'◐', label:'gândesc', color:'rgba(200,170,255,.8)', bursts:['◐','◑','◒','·'] },
+  focus:   { sym:'◈', label:'focus',   color:'rgba(130,180,255,.8)', bursts:['◈','◆','▸','·'] },
+  low:     { sym:'◌', label:'obosit',  color:'rgba(140,140,180,.6)', bursts:['◌','○','·','◦'] },
+  error:   { sym:'◍', label:'greu',    color:'rgba(220,130,130,.8)', bursts:['◍','○','·'] },
+  boost:   { sym:'◉', label:'hype',    color:'rgba(160,220,180,.8)', bursts:['◉','◎','○','·'] },
+  sync:    { sym:'⟡', label:'ok',      color:'rgba(180,170,255,.8)', bursts:['⟡','◎','○','·'] },
 }
 
 function detectMood(t: string): Mood {
   const s = t.toLowerCase()
-  if (/super|wow|fire|tare|🔥|sick|dope|hype/.test(s)) return 'boost'
-  if (/de ce|cum|explic|înțeleg|adică|hmm|interesant/.test(s)) return 'process'
+  if (/super|wow|fire|tare|hype|sick|dope/.test(s)) return 'boost'
+  if (/de ce|cum|explic|înțeleg|adică|hmm/.test(s)) return 'process'
   if (/trist|rău|greu|nu pot|ajutor|deprimat/.test(s)) return 'error'
   if (/obosit|somnoros|epuizat|nu mai/.test(s)) return 'low'
-  if (/cod|build|proiect|aplic|muzic|scri|dev/.test(s)) return 'focus'
+  if (/cod|build|proiect|muzic|scri|dev/.test(s)) return 'focus'
   if (/mulțumesc|mișto|respect|cool|ok/.test(s)) return 'sync'
   return 'idle'
 }
 
-function Avatar({ mood, speaking, size=100 }: { mood:Mood; speaking:boolean; size?:number }) {
-  const c = MOODS[mood].color
-  const eyeRy = mood==='low'?2.5:mood==='boost'||mood==='focus'?7.5:6
-  const browTL = mood==='process'?'rotate(-6 30 27)':mood==='error'?'rotate(10 30 27)':mood==='boost'?'translate(0,-5)':mood==='low'?'translate(0,4)':''
-  const browTR = mood==='process'?'rotate(6 60 27)':mood==='error'?'rotate(-10 60 27)':mood==='boost'?'translate(0,-5)':mood==='low'?'translate(0,4)':''
-  const mouth = mood==='boost'?'M25 57 Q45 73 65 57':mood==='process'?'M33 62 Q45 62 57 62':mood==='low'?'M34 61 Q45 63 56 61':mood==='error'?'M33 65 Q45 56 57 65':'M30 58 Q45 69 60 58'
-  const [mf, setMf] = useState<number>(0)
+function Avatar({ mood, speaking, size=80 }: { mood:Mood; speaking:boolean; size?:number }) {
+  const col = MOODS[mood].color
+  const eyeRy = mood==='low'?2.5:mood==='boost'||mood==='focus'?7:6
+  const browTL = mood==='process'?'rotate(-5 30 27)':mood==='error'?'rotate(8 30 27)':mood==='boost'?'translate(0,-4)':mood==='low'?'translate(0,4)':''
+  const browTR = mood==='process'?'rotate(5 60 27)':mood==='error'?'rotate(-8 60 27)':mood==='boost'?'translate(0,-4)':mood==='low'?'translate(0,4)':''
+  const mouth = mood==='boost'?'M26 57 Q45 71 64 57':mood==='process'?'M33 61 Q45 61 57 61':mood==='low'?'M34 60 Q45 62 56 60':mood==='error'?'M33 64 Q45 57 57 64':'M30 58 Q45 68 60 58'
+  const [mf, setMf] = useState(0)
   useEffect(()=>{
     if(!speaking) return
-    const id=setInterval(()=>setMf((f:number)=>(f+1)%3),100)
+    const id=setInterval(()=>setMf(f=>(f+1)%3),115)
     return ()=>clearInterval(id)
   },[speaking])
   return (
     <svg viewBox="0 0 90 90" width={size} height={size}>
-      <polygon points="45,3 82,24 82,66 45,87 8,66 8,24" fill="#0a1a12" stroke={c} strokeWidth="1.5" strokeOpacity="0.6"/>
-      <polygon points="45,10 76,28 76,62 45,80 14,62 14,28" fill="#0d2018" stroke={c} strokeWidth="0.5" strokeOpacity="0.3"/>
-      <circle cx="45" cy="44" r="24" fill="#0f2a1a"/>
-      <circle cx="45" cy="48" r="18" fill="#122d1e"/>
-      <line x1="21" y1="44" x2="69" y2="44" stroke={c} strokeWidth="0.3" strokeOpacity="0.4"/>
-      <ellipse cx="30" cy="40" rx="5.5" ry={eyeRy} fill={c} opacity="0.9"/>
-      <ellipse cx="60" cy="40" rx="5.5" ry={eyeRy} fill={c} opacity="0.9"/>
-      <circle cx="31.5" cy="38" r="1.8" fill="white" opacity="0.9"/>
-      <circle cx="61.5" cy="38" r="1.8" fill="white" opacity="0.9"/>
-      <circle cx="31.5" cy="38" r=".7" fill={c}/>
-      <circle cx="61.5" cy="38" r=".7" fill={c}/>
-      <rect x="23" y="30" width="13" height="3" rx="1.5" fill={c} opacity="0.8" transform={browTL}/>
-      <rect x="54" y="30" width="13" height="3" rx="1.5" fill={c} opacity="0.8" transform={browTR}/>
+      <circle cx="45" cy="45" r="42" fill="#16152a"/>
+      <circle cx="45" cy="51" r="33" fill="#1a1930"/>
+      <ellipse cx="30" cy="39" rx="6" ry={eyeRy} fill={col}/>
+      <ellipse cx="60" cy="39" rx="6" ry={eyeRy} fill={col}/>
+      <circle cx="32" cy="37" r="2" fill="white" opacity="0.85"/>
+      <circle cx="62" cy="37" r="2" fill="white" opacity="0.85"/>
+      <ellipse cx="30" cy="28" rx="9" ry="2.5" fill="#1a1930"/>
+      <ellipse cx="60" cy="28" rx="9" ry="2.5" fill="#1a1930"/>
+      <rect x="22" y="25.5" width="16" height="3.5" rx="1.75" fill={col} opacity="0.7" transform={browTL}/>
+      <rect x="52" y="25.5" width="16" height="3.5" rx="1.75" fill={col} opacity="0.7" transform={browTR}/>
       {speaking ? (
-        <path d={[mouth,'M32 59 Q45 66 58 59','M34 58 Q45 62 56 58'][mf]} fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" opacity="0.9"/>
+        <path d={[mouth,'M32 59 Q45 65 58 59','M34 58 Q45 62 56 58'][mf]} fill="none" stroke={col} strokeWidth="2.4" strokeLinecap="round"/>
       ) : (
-        <path d={mouth} fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" opacity="0.9"/>
+        <path d={mouth} fill="none" stroke={col} strokeWidth="2.4" strokeLinecap="round"/>
       )}
-      <line x1="8" y1="24" x2="14" y2="28" stroke={c} strokeWidth="1.5" opacity="0.4"/>
-      <line x1="82" y1="24" x2="76" y2="28" stroke={c} strokeWidth="1.5" opacity="0.4"/>
-      <line x1="8" y1="66" x2="14" y2="62" stroke={c} strokeWidth="1.5" opacity="0.4"/>
-      <line x1="82" y1="66" x2="76" y2="62" stroke={c} strokeWidth="1.5" opacity="0.4"/>
+      <circle cx="17" cy="54" r="7" fill="rgba(120,130,255,.15)"/>
+      <circle cx="73" cy="54" r="7" fill="rgba(120,130,255,.15)"/>
     </svg>
   )
 }
@@ -76,16 +71,60 @@ function Burst({ mood, trigger }: { mood:Mood; trigger:number }) {
     if(!trigger) return
     const syms = MOODS[mood].bursts
     const col = MOODS[mood].color
-    const items = Array.from({length:6+Math.floor(Math.random()*4)},(_,i)=>{
-      const a=Math.random()*Math.PI*2, d=40+Math.random()*55
-      return {id:Date.now()+i,e:syms[Math.floor(Math.random()*syms.length)],tx:Math.cos(a)*d,ty:Math.sin(a)*d,rot:-180+Math.random()*360,delay:Math.random()*200,size:10+Math.random()*10,col}
+    const items = Array.from({length:5+Math.floor(Math.random()*4)},(_,i)=>{
+      const a=Math.random()*Math.PI*2, d=35+Math.random()*50
+      return {id:Date.now()+i,e:syms[Math.floor(Math.random()*syms.length)],tx:Math.cos(a)*d,ty:Math.sin(a)*d,rot:-90+Math.random()*180,delay:Math.random()*200,size:10+Math.random()*9,col}
     })
     setPs(items); setTimeout(()=>setPs([]),2000)
   },[trigger])
   return (
     <div style={{position:'absolute',inset:0,pointerEvents:'none',zIndex:50}}>
       {ps.map(p=>(
-        <span key={p.id} style={{position:'absolute',fontSize:p.size,left:'50%',top:'50%',color:p.col,fontFamily:'monospace',fontWeight:700,animationName:'burst',animationDuration:'1.6s',animationTimingFunction:'ease-out',animationDelay:`${p.delay}ms`,animationFillMode:'forwards',['--tx' as any]:`${p.tx}px`,['--ty' as any]:`${p.ty}px`,['--rot' as any]:`${p.rot}deg`}}>{p.e}</span>
+        <span key={p.id} style={{position:'absolute',fontSize:p.size,left:'50%',top:'50%',color:p.col,fontFamily:'monospace',animationName:'burst',animationDuration:'1.7s',animationTimingFunction:'ease-out',animationDelay:`${p.delay}ms`,animationFillMode:'forwards',['--tx' as any]:`${p.tx}px`,['--ty' as any]:`${p.ty}px`,['--rot' as any]:`${p.rot}deg`}}>{p.e}</span>
+      ))}
+    </div>
+  )
+}
+
+function ParticleField() {
+  const items = useRef(Array.from({length:22},(_,i)=>({
+    id:i,
+    x: Math.random()*100,
+    y: Math.random()*100,
+    type: i%3===0?'diamond':i%3===1?'circle':'line',
+    size: 4+Math.random()*7,
+    dur: 14+Math.random()*14,
+    delay: Math.random()*10,
+    tx: (Math.random()-.5)*60,
+    ty: (Math.random()-.5)*60,
+    rot: Math.random()*90,
+    op: 0.06+Math.random()*0.1,
+  })))
+  return (
+    <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}>
+      {/* big soft rings in center */}
+      {[220,310,400].map((sz,i)=>(
+        <div key={i} style={{position:'absolute',width:sz,height:sz,borderRadius:'50%',border:'0.5px solid rgba(120,130,255,.05)',top:'50%',left:'50%',transform:'translate(-50%,-50%)',animationName:'pulse-ring',animationDuration:`${5+i*2}s`,animationTimingFunction:'ease-in-out',animationIterationCount:'infinite',animationDelay:`${i*1.2}s`}}/>
+      ))}
+      {items.current.map(p=>(
+        <div key={p.id} style={{
+          position:'absolute',
+          left:`${p.x}%`,
+          top:`${p.y}%`,
+          width: p.type==='line'?p.size*3:p.size,
+          height: p.type==='line'?1:p.size,
+          borderRadius: p.type==='circle'?'50%':0,
+          background: `rgba(120,130,255,${p.op})`,
+          transform: p.type==='diamond'?'rotate(45deg)':'none',
+          animationName:'particle-drift',
+          animationDuration:`${p.dur}s`,
+          animationDelay:`${p.delay}s`,
+          animationIterationCount:'infinite',
+          animationTimingFunction:'ease-in-out',
+          ['--tx' as any]:`${p.tx}px`,
+          ['--ty' as any]:`${p.ty}px`,
+          ['--rot' as any]:`${p.rot}deg`,
+        }}/>
       ))}
     </div>
   )
@@ -96,105 +135,98 @@ const defaultMotivation: MotivationState = {
 }
 
 export default function WispTeen({ userId }: { userId?: string }) {
-  const [msgs, setMsgs] = useState<Msg[]>([{role:'bot',text:'// WISP v2.0 online\n> Hey. Ce construim azi?',mood:'idle',ts:'now'}])
+  const [msgs, setMsgs] = useState<Msg[]>([{role:'bot',text:'Hey. Ce construim azi?',mood:'idle',ts:'acum'}])
   const [mood, setMood] = useState<Mood>('idle')
   const [speaking, setSpeaking] = useState(false)
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle')
-  const [voText, setVoText] = useState('> awaiting input...')
+  const [voText, setVoText] = useState('Apasă și vorbește.')
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
-  const [status, setStatus] = useState('online')
+  const [status, setStatus] = useState('')
   const [burst, setBurst] = useState(0)
   const [isListening, setIsListening] = useState(false)
-  const [showXP, setShowXP] = useState(false)
-  const [avPos, setAvPos] = useState({ x: 0, y: 0 })
-  const [motivation, setMotivation] = useState<MotivationState>(() => {
-    if (typeof window === 'undefined') return defaultMotivation
-    const s = localStorage.getItem('wisptteen-motivation')
-    return s ? JSON.parse(s) : defaultMotivation
+  const [motivation, setMotivation] = useState<MotivationState>(()=>{
+    if(typeof window==='undefined') return defaultMotivation
+    const s=localStorage.getItem('wisptteen-motivation')
+    return s?JSON.parse(s):defaultMotivation
   })
   const [newBadges, setNewBadges] = useState<string[]>([])
   const { current: achievement, dismiss, checkAndShow } = useAchievements()
   const chatRef = useRef<HTMLDivElement>(null)
   const voiceBuffer = useRef('')
   const recRef = useRef<any>(null)
-  const avAnimRef = useRef<number | null>(null)
   const sessionStart = useRef(Date.now())
+  const avAnimRef = useRef<number|null>(null)
+  const [avY, setAvY] = useState(0)
 
-  useEffect(() => {
-    return () => {
+  useEffect(()=>{
+    return ()=>{
       window.speechSynthesis.cancel()
       try { recRef.current?.stop() } catch(e) {}
       if(avAnimRef.current) cancelAnimationFrame(avAnimRef.current)
     }
-  }, [])
+  },[])
+
+  useEffect(()=>{
+    let t=0
+    const tick=()=>{ t+=0.007; setAvY(Math.sin(t)*7); avAnimRef.current=requestAnimationFrame(tick) }
+    avAnimRef.current=requestAnimationFrame(tick)
+    return ()=>{ if(avAnimRef.current) cancelAnimationFrame(avAnimRef.current) }
+  },[])
 
   useEffect(()=>{ if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight },[msgs,isTyping])
 
-  useEffect(()=>{
-    let t = 0
-    const animate = () => {
-      t += 0.008
-      setAvPos({ x: Math.sin(t * 1.3) * 6, y: Math.sin(t) * 8 })
-      avAnimRef.current = requestAnimationFrame(animate)
-    }
-    avAnimRef.current = requestAnimationFrame(animate)
-    return () => { if(avAnimRef.current) cancelAnimationFrame(avAnimRef.current) }
-  },[])
+  const now=()=>new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
 
-  const now = () => new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
+  const awardXP=useCallback((count:number)=>{
+    const mins=Math.floor((Date.now()-sessionStart.current)/60000)
+    const earned=calcXP(count,'😊',mins)
+    let updated=updateStreak(motivation)
+    updated={...updated,xp:updated.xp+earned,totalSessions:updated.totalSessions+1,weeklyXP:[...(updated.weeklyXP||[]).slice(-6),earned]}
+    const unlocked=checkNewBadges(updated)
+    updated.badges=[...updated.badges,...unlocked]
+    setNewBadges(unlocked); setMotivation(updated)
+    localStorage.setItem('wisptteen-motivation',JSON.stringify(updated))
+    checkAndShow(motivation,updated,earned,{})
+  },[motivation,checkAndShow])
 
-  const awardXP = useCallback((count: number) => {
-    const mins = Math.floor((Date.now() - sessionStart.current) / 60000)
-    const earned = calcXP(count, '😊', mins)
-    let updated = updateStreak(motivation)
-    updated = { ...updated, xp: updated.xp + earned, totalSessions: updated.totalSessions + 1, weeklyXP: [...(updated.weeklyXP||[]).slice(-6), earned] }
-    const unlocked = checkNewBadges(updated)
-    updated.badges = [...updated.badges, ...unlocked]
-    setNewBadges(unlocked)
-    setMotivation(updated)
-    localStorage.setItem('wisptteen-motivation', JSON.stringify(updated))
-    checkAndShow(motivation, updated, earned, {})
-  }, [motivation, checkAndShow])
-
-  const wispSpeak = useCallback((text:string, m:Mood, onDone?:()=>void)=>{
+  const wispSpeak=useCallback((text:string,m:Mood,onDone?:()=>void)=>{
     const synth=window.speechSynthesis; synth.cancel()
-    const utt=new SpeechSynthesisUtterance(text.replace(/^\/\/.*\n?/gm,'').replace(/^> /gm,''))
-    utt.lang='ro-RO'; utt.pitch=0.9; utt.rate=1.0; utt.volume=1
-    utt.onstart=()=>{ setSpeaking(true); setMood(m); setStatus('talking') }
-    utt.onend=()=>{ setSpeaking(false); setMood('idle'); setStatus('online'); onDone?.() }
-    utt.onerror=()=>{ setSpeaking(false); setMood('idle'); setStatus('online'); onDone?.() }
+    const utt=new SpeechSynthesisUtterance(text)
+    utt.lang='ro-RO'; utt.pitch=0.95; utt.rate=1.0; utt.volume=1
+    utt.onstart=()=>{setSpeaking(true);setMood(m);setStatus('vorbesc')}
+    utt.onend=()=>{setSpeaking(false);setMood('idle');setStatus('');onDone?.()}
+    utt.onerror=()=>{setSpeaking(false);setMood('idle');setStatus('');onDone?.()}
     synth.speak(utt)
   },[])
 
-  const getReply = async (history:Msg[], text:string) => {
-    try {
+  const getReply=async(history:Msg[],text:string)=>{
+    try{
       const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         messages:[...history.map(m=>({role:m.role==='bot'?'assistant':'user',content:m.text})),{role:'user',content:text}],
-        systemContext:`Ești WISP, companion AI pentru adolescenți 13-18 ani. Ești direct, cool, vorbești ca un prieten. Max 2 propoziții. Ajuți cu orice: cod, muzică, scriere, psihologie. Răspunzi în română. Fără asteriscuri.`
+        systemContext:`Ești WISP, companion AI pentru adolescenți 13-18 ani. Ești direct, relaxat, vorbești ca un prieten. Max 2 propoziții. Ajuți cu orice: cod, muzică, scriere, psihologie, idei. Răspunzi în română. Fără asteriscuri.`
       })})
       const d=await res.json()
       return {text:d.message||'Interesant.',mood:detectMood(d.message||'')}
-    } catch { return {text:'Connection error.',mood:'error' as Mood} }
+    }catch{return{text:'Eroare. Încearcă din nou.',mood:'error' as Mood}}
   }
 
-  const sendMsg = async (text:string, isVoice=false) => {
+  const sendMsg=async(text:string,isVoice=false)=>{
     if(!text.trim()) return
     const m=detectMood(text)
     setMsgs(p=>[...p,{role:'user',text,mood:m,ts:now(),isVoice}])
-    setMood('process'); setStatus('processing...'); setIsTyping(true)
+    setMood('process'); setStatus('procesez'); setIsTyping(true)
     const reply=await getReply(msgs,text)
     setIsTyping(false)
     setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice}])
-    setMood(reply.mood); setBurst(b=>b+1)
-    awardXP(1)
+    setMood(reply.mood); setBurst(b=>b+1); awardXP(1)
     wispSpeak(reply.text,reply.mood)
   }
 
   const startVoiceRec=()=>{
     const SR=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition
-    if(!SR){setVoText('> chrome only.');return}
+    if(!SR){setVoText('Necesită Chrome.');return}
     voiceBuffer.current=''
     const rec=new SR(); rec.lang='ro-RO'; rec.continuous=true; rec.interimResults=true
     rec.onresult=(e:any)=>{
@@ -202,16 +234,16 @@ export default function WispTeen({ userId }: { userId?: string }) {
         if(e.results[i].isFinal) voiceBuffer.current+=e.results[i][0].transcript+' '
         else t+=e.results[i][0].transcript
       }
-      setVoText('> '+(voiceBuffer.current+t)||'...')
+      setVoText((voiceBuffer.current+t)||'...')
     }
     rec.onerror=()=>{}; rec.start(); recRef.current=rec
-    setVoiceMode('recording'); setVoText('> listening...'); setMood('focus'); setIsListening(true)
+    setVoiceMode('recording'); setVoText('...'); setMood('focus'); setIsListening(true)
   }
 
   const finishVoiceRec=()=>{
     try{recRef.current?.stop()}catch(e){}; setIsListening(false)
     const text=voiceBuffer.current.trim()
-    if(!text){setVoiceMode('idle');setVoText('> no input detected.');return}
+    if(!text){setVoiceMode('idle');setVoText('Nu am auzit nimic.');return}
     setVoiceMode('analyzing'); setMood('process')
     sendVoiceMsg(text)
   }
@@ -221,159 +253,181 @@ export default function WispTeen({ userId }: { userId?: string }) {
     setMsgs(p=>[...p,{role:'user',text,mood:m,ts:now(),isVoice:true}])
     const reply=await getReply(msgs,text)
     setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice:true}])
-    setMood(reply.mood); setVoText('> '+reply.text); setBurst(b=>b+1)
-    awardXP(1)
+    setMood(reply.mood); setVoText(reply.text); setBurst(b=>b+1); awardXP(1)
     setVoiceMode('responding')
-    wispSpeak(reply.text,reply.mood,()=>{setVoiceMode('idle');setVoText('> ready.')})
+    wispSpeak(reply.text,reply.mood,()=>{setVoiceMode('idle');setVoText('Sunt gata.')})
   }
 
   const toggleMic=()=>{
-    if(isListening){try{recRef.current?.stop()}catch(e){};setIsListening(false);setStatus('online');return}
+    if(isListening){try{recRef.current?.stop()}catch(e){};setIsListening(false);setStatus('');return}
     const SR=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition
-    if(!SR){alert('Chrome only.');return}
+    if(!SR){alert('Necesită Chrome.');return}
     const rec=new SR(); rec.lang='ro-RO'; rec.continuous=false; rec.interimResults=true
-    rec.onstart=()=>{setIsListening(true);setMood('focus');setStatus('listening...')}
+    rec.onstart=()=>{setIsListening(true);setMood('focus');setStatus('ascult')}
     rec.onresult=(e:any)=>{
       let t=''; for(let i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript
       setInput(t)
-      if(e.results[e.results.length-1].isFinal){try{rec.stop()}catch(e){};setIsListening(false);setStatus('online');sendMsg(t)}
+      if(e.results[e.results.length-1].isFinal){try{rec.stop()}catch(e){};setIsListening(false);setStatus('');sendMsg(t)}
     }
-    rec.onerror=()=>{setIsListening(false);setStatus('online')}
+    rec.onerror=()=>{setIsListening(false);setStatus('')}
     rec.start(); recRef.current=rec
   }
 
   const handleVoBtn=()=>{
     if(voiceMode==='idle') startVoiceRec()
     else if(voiceMode==='recording') finishVoiceRec()
-    else if(voiceMode==='responding'){window.speechSynthesis.cancel();setSpeaking(false);setVoiceMode('idle');setVoText('> ready.')}
+    else if(voiceMode==='responding'){window.speechSynthesis.cancel();setSpeaking(false);setVoiceMode('idle');setVoText('Sunt gata.')}
   }
 
   const mc = MOODS[mood].color
-  const statusColor = status==='listening...'?'#E24B4A':status==='processing...'?'#EF9F27':status==='talking'?mc:'#1D9E75'
 
   return (
-    <div style={{minHeight:'100vh',background:'#020d07',display:'flex',flexDirection:'column',fontFamily:'"Courier New",Courier,monospace',position:'relative',overflow:'hidden',color:'rgba(255,255,255,.85)'}}>
+    <div style={{minHeight:'100vh',background:'#07080f',display:'flex',flexDirection:'column',fontFamily:'system-ui,sans-serif',position:'relative',overflow:'hidden',color:'rgba(255,255,255,.8)'}}>
       <style>{`
         @keyframes burst{0%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0deg)}100%{opacity:0;transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(.2) rotate(var(--rot))}}
-        @keyframes msg-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes scan{0%{transform:translateY(-100%);opacity:0}10%{opacity:1}90%{opacity:.3}100%{transform:translateY(100vh);opacity:0}}
-        @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-        @keyframes grid-fade{0%,100%{opacity:.03}50%{opacity:.07}}
+        @keyframes msg-in{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes msg-in-r{from{opacity:0;transform:translateX(5px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes pulse-ring{0%,100%{opacity:.6;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.04)}}
+        @keyframes particle-drift{0%{opacity:0;transform:translate(0,0) rotate(var(--rot))}15%{opacity:1}85%{opacity:.4}100%{opacity:0;transform:translate(var(--tx),var(--ty)) rotate(calc(var(--rot) + 45deg))}}
         @keyframes rpulse{0%,100%{opacity:1}50%{opacity:.3}}
         @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
-        @keyframes ring-out{0%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(1.6)}}
+        @keyframes ring-out{0%{opacity:.4;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)}}
+        @keyframes blink-cur{0%,49%{opacity:1}50%,100%{opacity:0}}
+        @keyframes breathe{0%,100%{opacity:.12;transform:translate(-50%,-50%) scale(1)}50%{opacity:.22;transform:translate(-50%,-50%) scale(1.05)}}
       `}</style>
 
-      <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(29,158,117,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(29,158,117,.06) 1px,transparent 1px)',backgroundSize:'32px 32px',animation:'grid-fade 4s ease-in-out infinite',pointerEvents:'none'}}/>
-      {[0,1,2].map(i=>(<div key={i} style={{position:'absolute',left:0,right:0,height:'1px',background:'linear-gradient(90deg,transparent,rgba(29,158,117,.3),transparent)',animation:`scan ${6+i*3}s linear infinite`,animationDelay:`${i*2}s`,pointerEvents:'none'}}/>))}
-      {[{top:8,left:8,borderTop:'1px solid',borderLeft:'1px solid'},{top:8,right:8,borderTop:'1px solid',borderRight:'1px solid'},{bottom:8,left:8,borderBottom:'1px solid',borderLeft:'1px solid'},{bottom:8,right:8,borderBottom:'1px solid',borderRight:'1px solid'}].map((s,i)=>(
-        <div key={i} style={{position:'absolute',width:16,height:16,borderColor:'rgba(29,158,117,.3)',pointerEvents:'none',...s}}/>
-      ))}
+      <ParticleField/>
 
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',flexShrink:0,position:'relative',zIndex:2,borderBottom:'0.5px solid rgba(29,158,117,.1)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:12,color:'rgba(29,158,117,.5)'}}>{'>'}</span>
-          <span style={{fontSize:13,fontWeight:700,color:'#9FE1CB',letterSpacing:'.1em'}}>WISP</span>
-          <span style={{fontSize:10,color:'rgba(29,158,117,.4)',background:'rgba(29,158,117,.06)',padding:'1px 7px',borderRadius:4,border:'0.5px solid rgba(29,158,117,.15)',letterSpacing:'.06em'}}>TEEN · v2.0</span>
-        </div>
+      {/* ── HEADER ── */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',flexShrink:0,position:'relative',zIndex:3,borderBottom:'0.5px solid rgba(120,130,255,.07)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>setShowXP(v=>!v)} style={{padding:'3px 8px',borderRadius:4,fontSize:10,border:'0.5px solid rgba(29,158,117,.25)',background:'rgba(29,158,117,.06)',color:'#9FE1CB',cursor:'pointer',fontFamily:'monospace'}}>
-            XP:{motivation.xp}
-          </button>
-          <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:statusColor}}>
-            <div style={{width:5,height:5,borderRadius:'50%',background:statusColor,animation:status!=='online'?'rpulse .7s infinite':undefined}}/>
-            {status}
+          <span style={{fontSize:14,fontWeight:600,color:'rgba(180,190,255,.85)',letterSpacing:'.08em'}}>WISP</span>
+          <span style={{fontSize:10,color:'rgba(120,130,255,.4)',background:'rgba(120,130,255,.07)',padding:'1px 8px',borderRadius:20,border:'0.5px solid rgba(120,130,255,.12)'}}>Teen · 13–18</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:mc}}>
+            <div style={{width:4,height:4,borderRadius:'50%',background:mc,animation:status?'rpulse .7s infinite':undefined}}/>
+            {status||MOODS[mood].label}
           </div>
-          <button onClick={()=>setVoiceOpen(true)} style={{padding:'4px 10px',borderRadius:4,fontSize:10,border:'0.5px solid rgba(29,158,117,.25)',background:'rgba(29,158,117,.06)',color:'#9FE1CB',cursor:'pointer',letterSpacing:'.04em'}}>MIC_ON</button>
+          <button onClick={()=>setVoiceOpen(true)} style={{padding:'4px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(120,130,255,.2)',background:'rgba(120,130,255,.07)',color:'rgba(160,170,255,.7)',cursor:'pointer'}}>
+            🎤 voice
+          </button>
         </div>
       </div>
 
-      {showXP && (
-        <div style={{padding:'8px 18px',position:'relative',zIndex:2,borderBottom:'0.5px solid rgba(29,158,117,.08)'}}>
-          <XPBar state={motivation} newBadges={newBadges}/>
-        </div>
-      )}
+      {/* ── XP BAR ── */}
+      <div style={{padding:'8px 18px 0',flexShrink:0,position:'relative',zIndex:3}}>
+        <XPBar state={motivation} newBadges={newBadges}/>
+      </div>
 
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'14px 0 6px',flexShrink:0,position:'relative',zIndex:2}}>
-        <div style={{position:'relative',transform:`translate(${avPos.x}px,${avPos.y}px)`,transition:'transform .05s linear'}}>
-          {speaking&&[110,145].map((sz,i)=>(
-            <div key={i} style={{position:'absolute',inset:-(sz-90)/2,borderRadius:2,border:`1px solid ${mc}`,animation:`ring-out ${1.2+i*.3}s ease-out infinite ${i*.2}s`,opacity:.6-i*.2}}/>
+      {/* ── AVATAR centrat ── */}
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'18px 0 10px',flexShrink:0,position:'relative',zIndex:2}}>
+        <div style={{position:'relative',transform:`translateY(${avY}px)`,transition:'transform .05s linear'}}>
+          {speaking&&[100,130].map((sz,i)=>(
+            <div key={i} style={{position:'absolute',width:sz,height:sz,top:'50%',left:'50%',borderRadius:'50%',border:`0.5px solid ${mc}`,opacity:.4-i*.15,animationName:'ring-out',animationDuration:`${1.3+i*.3}s`,animationTimingFunction:'ease-out',animationIterationCount:'infinite',animationDelay:`${i*.2}s`}}/>
           ))}
-          <Avatar mood={mood} speaking={speaking} size={90}/>
+          {/* soft idle rings */}
+          {!speaking&&[90,115].map((sz,i)=>(
+            <div key={i} style={{position:'absolute',width:sz,height:sz,top:'50%',left:'50%',borderRadius:'50%',border:'0.5px solid rgba(120,130,255,.08)',animationName:'breathe',animationDuration:`${3+i}s`,animationTimingFunction:'ease-in-out',animationIterationCount:'infinite',animationDelay:`${i*.6}s`}}/>
+          ))}
+          <Avatar mood={mood} speaking={speaking} size={80}/>
           <Burst mood={mood} trigger={burst}/>
-          {(status==='processing...'||status==='listening...') && (
-            <div style={{position:'absolute',left:0,right:0,height:1,background:mc,top:'50%',animation:'rpulse .5s infinite',pointerEvents:'none',opacity:.6}}/>
-          )}
         </div>
-        <div style={{marginTop:6,display:'flex',alignItems:'center',gap:8,fontSize:10}}>
-          <span style={{color:mc,fontWeight:700,letterSpacing:'.08em'}}>{MOODS[mood].sym}</span>
-          <span style={{color:'rgba(29,158,117,.45)',letterSpacing:'.06em'}}>{MOODS[mood].label.toUpperCase()}</span>
-          <span style={{color:'rgba(29,158,117,.2)',animation:'blink 1.2s infinite'}}>█</span>
+        <div style={{marginTop:8,display:'flex',alignItems:'center',gap:6,fontSize:10,color:'rgba(120,130,255,.35)'}}>
+          <span style={{color:mc}}>{MOODS[mood].sym}</span>
+          <span style={{letterSpacing:'.08em'}}>WISP</span>
+          <span style={{animation:'blink-cur 1.4s infinite'}}>|</span>
         </div>
       </div>
 
-      <div ref={chatRef} style={{flex:1,overflowY:'auto',padding:'4px 16px 8px',display:'flex',flexDirection:'column',gap:6,position:'relative',zIndex:1}}>
+      <div style={{height:'0.5px',background:'rgba(120,130,255,.05)',margin:'0 20px',flexShrink:0}}/>
+
+      {/* ── CHAT ── */}
+      <div ref={chatRef} style={{flex:1,overflowY:'auto',padding:'12px 18px',display:'flex',flexDirection:'column',gap:6,position:'relative',zIndex:1}}>
         {msgs.map((m,i)=>(
-          <div key={i} style={{display:'flex',gap:8,alignItems:'flex-start',maxWidth:'90%',alignSelf:m.role==='user'?'flex-end':'flex-start',flexDirection:m.role==='user'?'row-reverse':'row',animation:'msg-in .25s ease-out'}}>
-            <div style={{width:18,height:18,borderRadius:2,background:m.role==='bot'?'rgba(29,158,117,.15)':'rgba(255,255,255,.04)',border:`0.5px solid ${m.role==='bot'?'rgba(29,158,117,.3)':'rgba(255,255,255,.08)'}`,color:m.role==='bot'?'#9FE1CB':'rgba(255,255,255,.3)',fontSize:8,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:2}}>
-              {m.role==='bot'?'W':'U'}
-            </div>
-            <div style={{maxWidth:'100%'}}>
-              <div style={{padding:'7px 11px',borderRadius:2,fontSize:12,lineHeight:1.6,background:m.role==='bot'?'rgba(29,158,117,.07)':'rgba(29,158,117,.13)',color:m.role==='bot'?'rgba(255,255,255,.82)':'rgba(255,255,255,.92)',border:`0.5px solid rgba(29,158,117,${m.role==='bot'?.12:.22})`,borderLeft:`2px solid ${m.role==='bot'?MOODS[m.mood].color:'rgba(29,158,117,.4)'}`,fontStyle:m.isVoice?'italic':'normal',whiteSpace:'pre-line'}}>
-                {m.isVoice?`// voice\n> ${m.text}`:m.text}
+          <div key={i} style={{maxWidth:'84%',alignSelf:m.role==='user'?'flex-end':'flex-start'}}>
+            {m.role==='bot'&&(
+              <div style={{fontSize:9,color:'rgba(120,130,255,.2)',marginBottom:3,letterSpacing:'.04em'}}>
+                WISP · {m.ts}{m.isVoice?' · 🎤':''}
               </div>
-              <div style={{fontSize:9,marginTop:2,color:'rgba(29,158,117,.25)',display:'flex',gap:5,justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
-                <span style={{color:MOODS[m.mood].color}}>{MOODS[m.mood].sym}</span>
-                <span>{m.ts}</span>
-                {m.isVoice&&<span>· voice</span>}
-              </div>
+            )}
+            <div style={{
+              padding:'8px 13px',
+              borderRadius:12,
+              fontSize:13,
+              lineHeight:1.6,
+              color:m.role==='bot'?'rgba(255,255,255,.78)':'rgba(255,255,255,.88)',
+              background:m.role==='bot'?'rgba(120,130,255,.08)':'rgba(120,130,255,.14)',
+              border:`0.5px solid rgba(120,130,255,${m.role==='bot'?.1:.18})`,
+              borderBottomLeftRadius:m.role==='bot'?2:12,
+              borderBottomRightRadius:m.role==='user'?2:12,
+              fontStyle:m.isVoice?'italic':'normal',
+              animationName:m.role==='bot'?'msg-in':'msg-in-r',
+              animationDuration:'.25s',
+              animationTimingFunction:'ease-out',
+            }}>
+              {m.isVoice&&m.role==='user'?`🎤 "${m.text}"`:m.text}
             </div>
+            {m.role==='user'&&(
+              <div style={{fontSize:9,color:'rgba(120,130,255,.18)',marginTop:2,textAlign:'right'}}>
+                {MOODS[m.mood].sym} · {m.ts}{m.isVoice?' · voice':''}
+              </div>
+            )}
           </div>
         ))}
         {isTyping&&(
-          <div style={{display:'flex',gap:8,alignItems:'center',animation:'msg-in .25s ease-out'}}>
-            <div style={{width:18,height:18,borderRadius:2,background:'rgba(29,158,117,.15)',border:'0.5px solid rgba(29,158,117,.3)',color:'#9FE1CB',fontSize:8,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>W</div>
-            <div style={{display:'flex',gap:3,padding:'7px 11px',background:'rgba(29,158,117,.07)',border:'0.5px solid rgba(29,158,117,.12)',borderLeft:'2px solid rgba(29,158,117,.5)',borderRadius:2}}>
-              {[0,.18,.36].map((d,i)=><span key={i} style={{width:5,height:5,borderRadius:'50%',background:'rgba(29,158,117,.5)',display:'inline-block',animation:`tdot 1s ${d}s infinite`}}/>)}
+          <div style={{animationName:'msg-in',animationDuration:'.25s',animationTimingFunction:'ease-out'}}>
+            <div style={{fontSize:9,color:'rgba(120,130,255,.2)',marginBottom:3}}>WISP</div>
+            <div style={{display:'inline-flex',gap:3,padding:'8px 13px',background:'rgba(120,130,255,.08)',border:'0.5px solid rgba(120,130,255,.1)',borderRadius:12,borderBottomLeftRadius:2}}>
+              {[0,.18,.36].map((d,i)=><span key={i} style={{width:5,height:5,borderRadius:'50%',background:'rgba(120,130,255,.4)',display:'inline-block',animation:`tdot 1.1s ${d}s infinite`}}/>)}
             </div>
           </div>
         )}
       </div>
 
-      <div style={{padding:'8px 16px 16px',display:'flex',gap:7,alignItems:'center',borderTop:'0.5px solid rgba(29,158,117,.08)',position:'relative',zIndex:2}}>
-        <span style={{fontSize:11,color:'rgba(29,158,117,.4)',flexShrink:0}}>{'>'}</span>
-        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&input.trim()){sendMsg(input);setInput('')}}} placeholder="input..." style={{flex:1,background:'transparent',border:'none',borderBottom:'0.5px solid rgba(29,158,117,.2)',borderRadius:0,padding:'6px 4px',color:'#9FE1CB',fontSize:12,outline:'none',fontFamily:'monospace'}}/>
-        <button onClick={toggleMic} style={{width:30,height:30,borderRadius:2,border:`0.5px solid ${isListening?'rgba(224,75,74,.5)':'rgba(29,158,117,.2)'}`,background:isListening?'rgba(224,75,74,.1)':'transparent',color:isListening?'#E24B4A':'rgba(29,158,117,.6)',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',animation:isListening?'rpulse .6s infinite':undefined}}>⏺</button>
-        <button onClick={()=>{if(input.trim()){sendMsg(input);setInput('')}}} style={{width:30,height:30,borderRadius:2,border:'0.5px solid rgba(29,158,117,.3)',background:'rgba(29,158,117,.1)',color:'#9FE1CB',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>▸</button>
+      {/* ── INPUT ── */}
+      <div style={{padding:'8px 18px 18px',flexShrink:0,position:'relative',zIndex:3}}>
+        <div style={{height:'0.5px',background:'rgba(120,130,255,.06)',marginBottom:10}}/>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&input.trim()){sendMsg(input);setInput('')}}} placeholder="scrie ceva…" style={{flex:1,background:'transparent',border:'none',borderBottom:'0.5px solid rgba(120,130,255,.15)',padding:'5px 0',color:'rgba(255,255,255,.6)',fontSize:13,outline:'none',fontFamily:'system-ui'}}/>
+          <button onClick={toggleMic} style={{width:30,height:30,borderRadius:'50%',border:`0.5px solid ${isListening?'rgba(220,100,100,.4)':'rgba(120,130,255,.15)'}`,background:isListening?'rgba(220,100,100,.08)':'transparent',color:isListening?'rgba(220,130,130,.8)':'rgba(120,130,255,.4)',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',animation:isListening?'rpulse .6s infinite':undefined}}>⏺</button>
+          <button onClick={()=>{if(input.trim()){sendMsg(input);setInput('')}}} style={{width:30,height:30,borderRadius:'50%',border:'0.5px solid rgba(120,130,255,.18)',background:'rgba(120,130,255,.08)',color:'rgba(160,170,255,.7)',fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>↑</button>
+        </div>
       </div>
 
+      {/* ── VOICE OVERLAY ── */}
       {voiceOpen&&(
-        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,#020d07 0%,#041208 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20,zIndex:100,animation:'msg-in .3s ease-out'}}>
-          <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(29,158,117,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(29,158,117,.05) 1px,transparent 1px)',backgroundSize:'32px 32px',pointerEvents:'none'}}/>
-          <button onClick={()=>{setVoiceOpen(false);window.speechSynthesis.cancel();try{recRef.current?.stop()}catch(e){};setVoiceMode('idle');setSpeaking(false);setIsListening(false);setMood('idle')}} style={{position:'absolute',top:16,right:16,background:'none',border:'none',color:'rgba(29,158,117,.3)',fontSize:16,cursor:'pointer',fontFamily:'monospace',zIndex:1}}>[ X ]</button>
-          <div style={{position:'relative',zIndex:1}}>
-            {[120,160,200].map((sz,i)=>(
-              <div key={i} style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:sz,height:sz,border:`${i===0?1:.5}px solid rgba(29,158,117,${speaking?.5-.1*i:.2-.04*i})`,borderRadius:speaking?'50%':2,transition:'border-radius .5s',animation:speaking?`rpulse ${.6+i*.2}s ease-in-out infinite ${i*.15}s`:`ring-out ${2+i*.4}s ease-out infinite ${i*.3}s`}}/>
+        <div style={{position:'absolute',inset:0,background:'#05050d',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:22,zIndex:100,animationName:'msg-in',animationDuration:'.4s',animationTimingFunction:'ease-out'}}>
+          <ParticleField/>
+          <button onClick={()=>{setVoiceOpen(false);window.speechSynthesis.cancel();try{recRef.current?.stop()}catch(e){};setVoiceMode('idle');setSpeaking(false);setIsListening(false);setMood('idle')}} style={{position:'absolute',top:18,right:18,background:'none',border:'none',color:'rgba(120,130,255,.25)',fontSize:18,cursor:'pointer',zIndex:1}}>✕</button>
+
+          <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1}}>
+            {[110,145,180].map((sz,i)=>(
+              <div key={i} style={{position:'absolute',width:sz,height:sz,top:'50%',left:'50%',borderRadius:'50%',border:`0.5px solid rgba(120,130,255,${speaking?.2-.05*i:.08-.02*i})`,animationName:speaking?'rpulse':'breathe',animationDuration:`${speaking?.7+i*.2:3+i}s`,animationTimingFunction:'ease-in-out',animationIterationCount:'infinite',animationDelay:`${i*.2}s`}}/>
             ))}
-            <div style={{position:'relative',zIndex:2,transform:`translate(${avPos.x}px,${avPos.y}px)`}}>
-              <Avatar mood={mood} speaking={speaking} size={110}/>
+            <div style={{position:'relative',zIndex:2,transform:`translateY(${avY}px)`}}>
+              <Avatar mood={mood} speaking={speaking} size={100}/>
               <Burst mood={mood} trigger={burst}/>
             </div>
           </div>
+
           <div style={{textAlign:'center',zIndex:1}}>
-            <div style={{fontSize:16,fontWeight:700,color:'#9FE1CB',letterSpacing:'.12em'}}>WISP</div>
-            <div style={{fontSize:10,color:'rgba(29,158,117,.4)',letterSpacing:'.1em',marginTop:3}}>
-              {voiceMode==='idle'?'// READY':voiceMode==='recording'?'// RECORDING':voiceMode==='analyzing'?'// ANALYZING':'// SPEAKING'}
+            <div style={{fontSize:16,fontWeight:400,color:'rgba(180,190,255,.8)',letterSpacing:'.14em'}}>WISP</div>
+            <div style={{fontSize:10,color:'rgba(120,130,255,.3)',marginTop:3,letterSpacing:'.08em'}}>
+              {voiceMode==='idle'?'':voiceMode==='recording'?'ascult':voiceMode==='analyzing'?'procesez':'răspund'}
             </div>
           </div>
-          <div style={{maxWidth:260,textAlign:'left',fontSize:12,color:'rgba(29,158,117,.75)',minHeight:48,lineHeight:1.7,padding:'10px 16px',background:'rgba(29,158,117,.05)',borderRadius:2,border:'0.5px solid rgba(29,158,117,.15)',borderLeft:'2px solid rgba(29,158,117,.4)',fontFamily:'monospace',whiteSpace:'pre-wrap',zIndex:1}}>
-            {voText}{voiceMode==='recording'&&<span style={{animation:'blink 0.7s infinite'}}>█</span>}
+
+          <div style={{maxWidth:240,textAlign:'center',fontSize:14,color:'rgba(255,255,255,.5)',minHeight:44,lineHeight:1.75,padding:'10px 18px',background:'rgba(120,130,255,.06)',borderRadius:12,border:'0.5px solid rgba(120,130,255,.1)',fontStyle:voiceMode==='recording'?'italic':'normal',zIndex:1}}>
+            {voText}
           </div>
-          <button onClick={handleVoBtn} style={{width:64,height:64,borderRadius:2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',border:`1px solid rgba(29,158,117,${voiceMode==='recording'?.2:voiceMode==='responding'?.4:.2})`,background:voiceMode==='recording'?'rgba(224,75,74,.08)':voiceMode==='responding'?'rgba(29,158,117,.12)':'rgba(29,158,117,.06)',animation:voiceMode==='recording'?'rpulse .7s infinite':undefined,transition:'all .2s',color:voiceMode==='recording'?'#E24B4A':'#9FE1CB',fontFamily:'monospace',fontSize:voiceMode==='recording'?14:22,zIndex:1}}>
-            {voiceMode==='idle'?'⏺':voiceMode==='recording'?'[ STOP ]':voiceMode==='analyzing'?'...':'▸'}
+
+          <button onClick={handleVoBtn} style={{width:62,height:62,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,cursor:'pointer',border:`0.5px solid rgba(120,130,255,${voiceMode==='recording'?.15:voiceMode==='responding'?.25:.08})`,background:voiceMode==='recording'?'rgba(220,100,100,.06)':voiceMode==='responding'?'rgba(120,130,255,.08)':'transparent',animation:voiceMode==='recording'?'rpulse .8s infinite':undefined,transition:'all .3s',color:voiceMode==='recording'?'rgba(220,130,130,.7)':'rgba(160,170,255,.5)',zIndex:1}}>
+            {voiceMode==='idle'?'○':voiceMode==='recording'?'◼':voiceMode==='analyzing'?'◐':'◎'}
           </button>
-          <div style={{fontSize:10,color:'rgba(29,158,117,.2)',textAlign:'center',fontFamily:'monospace',zIndex:1}}>
-            {voiceMode==='idle'?'// press ⏺ to start':voiceMode==='recording'?'// press [STOP] when done':voiceMode==='responding'?'// press ▸ to continue':''}
+
+          <div style={{fontSize:10,color:'rgba(120,130,255,.2)',letterSpacing:'.04em',zIndex:1}}>
+            {voiceMode==='idle'?'apasă ○ pentru a vorbi':voiceMode==='recording'?'apasă ◼ când termini':voiceMode==='responding'?'apasă ◎ pentru a continua':''}
           </div>
         </div>
       )}
