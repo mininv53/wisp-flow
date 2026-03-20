@@ -1,364 +1,288 @@
 'use client'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
-import { useState, useEffect, useRef } from 'react'
-import { Send, ChevronRight, Circle, CheckCircle2, Clock, Zap, TerminalSquare, FolderOpen, GitBranch, Star } from 'lucide-react'
-import XPBar from './XPBar'
-import AchievementPopup from './AchievementPopup'
-import ConversationQuiz from './ConversationQuiz'
-import QuizResult from './QuizResult'
-import { useAchievements } from '../lib/useAchievements'
-import { useConversationQuiz } from '../lib/useConversationQuiz'
-import { calcXP, updateStreak, checkNewBadges, analyzeStyle, buildStylePrompt, type MotivationState, type StyleProfile } from '../lib/motivation'
-import type { QuizResult as QuizResultType } from './ConversationQuiz'
+type Mood = 'happy' | 'excited' | 'think' | 'sleepy' | 'sad' | 'laugh' | 'love'
+type VoiceMode = 'idle' | 'recording' | 'analyzing' | 'responding'
+interface Msg { role: 'user' | 'bot'; text: string; mood: Mood; ts: string; isVoice?: boolean }
 
-interface Message { role: 'user' | 'assistant'; content: string }
-interface Task { id: number; text: string; done: boolean; day: number }
-interface Project { id: number; title: string; domain: string; emoji: string; description: string; daysLeft: number; tasks: Task[]; createdAt: string }
-interface TeenProfile { name: string; age: number; domain: string; projectsDone: number; currentStreak: number }
-
-const DOMAINS = [
-  { id: 'cod', label: 'Cod', emoji: '⌨️', desc: 'Aplicații, site-uri, scripturi, tooluri' },
-  { id: 'design', label: 'Design', emoji: '◻️', desc: 'Branding, UI, ilustrații, vizual identity' },
-  { id: 'muzica', label: 'Muzică', emoji: '◈', desc: 'Versuri, beaturi, compoziții, producție' },
-  { id: 'scriere', label: 'Scriere', emoji: '∴', desc: 'Povești, eseuri, scenarii, blog' },
-  { id: 'antreprenoriat', label: 'Business', emoji: '◇', desc: 'Idei, validare, pitch-uri, strategie' },
-  { id: 'stiinta', label: 'Știință', emoji: '⬡', desc: 'Experimente, cercetare, proiecte STEM' },
-]
-
-const defaultMotivation: MotivationState = { xp: 0, level: 1, streak: 0, lastActiveDate: '', graceDayUsed: false, totalSessions: 0, badges: [], weeklyXP: [] }
-const defaultStyle: StyleProfile = { tone: 'unknown', avgMessageLength: 'medium', emojis: [], language: 'ro', sampleMessages: [] }
-
-function Cursor() {
-  const [on, setOn] = useState(true)
-  useEffect(() => { const id = setInterval(() => setOn(v => !v), 530); return () => clearInterval(id) }, [])
-  return <span className={`inline-block w-2 h-4 bg-emerald-400 ml-0.5 align-middle ${on ? 'opacity-100' : 'opacity-0'}`} />
+const MOODS: Record<Mood,{emoji:string,label:string,bursts:string[]}> = {
+  happy:   { emoji:'😊', label:'chill',       bursts:['💚','✦','·','◦'] },
+  excited: { emoji:'🔥', label:'hype',        bursts:['🔥','⚡','🚀','💥','✌️'] },
+  think:   { emoji:'🤔', label:'gândesc',    bursts:['💡','🎵','🎨','💭'] },
+  sleepy:  { emoji:'😮‍💨', label:'obosit',    bursts:['😮‍💨','💤','🌙'] },
+  sad:     { emoji:'😞', label:'off',         bursts:['💙','🤍','◦','·'] },
+  laugh:   { emoji:'💀', label:'skill issue', bursts:['💀','😭','😂','🎊'] },
+  love:    { emoji:'🫶', label:'respect',     bursts:['🫶','💚','✊','🤝'] },
 }
 
-function DayBar({ day, total = 3 }: { day: number; total?: number }) {
-  return <div className="flex gap-1">{[...Array(total)].map((_, i) => <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-500 ${i < day ? 'bg-emerald-500' : i === day ? 'bg-emerald-900' : 'bg-zinc-800'}`} />)}</div>
+function detectMood(t: string): Mood {
+  const s = t.toLowerCase()
+  if (/super|wow|grozav|bravo|fire|tare|yay|🔥/.test(s)) return 'excited'
+  if (/de ce|cum|explic|înțeleg|adică|hmm|interesant/.test(s)) return 'think'
+  if (/trist|rău|greu|nu pot|ajutor|deprimat/.test(s)) return 'sad'
+  if (/obosit|somnoros|epuizat|nu mai/.test(s)) return 'sleepy'
+  if (/haha|lol|mort|💀|amuzant/.test(s)) return 'laugh'
+  if (/mulțumesc|fain|mișto|respect/.test(s)) return 'love'
+  return 'happy'
 }
 
-export default function WispTeen() {
-  const [phase, setPhase] = useState<'onboarding' | 'domain' | 'chat' | 'build'>('onboarding')
-  const [step, setStep] = useState(0)
-  const [nameInput, setNameInput] = useState('')
-  const [ageInput, setAgeInput] = useState('')
-  const [profile, setProfile] = useState<TeenProfile | null>(null)
-  const [selectedDomain, setSelectedDomain] = useState('')
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [thinking, setThinking] = useState('')
-  const [project, setProject] = useState<Project | null>(null)
-  const [activeDay, setActiveDay] = useState(0)
-  const [sessionTimer, setSessionTimer] = useState(0)
-  const [timerActive, setTimerActive] = useState(false)
-  const [showXP, setShowXP] = useState(false)
-  const [motivation, setMotivation] = useState<MotivationState>(defaultMotivation)
-  const [newBadges, setNewBadges] = useState<string[]>([])
-  const [styleProfile, setStyleProfile] = useState<StyleProfile>(defaultStyle)
-  const [quizResult, setQuizResult] = useState<QuizResultType | null>(null)
-
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const { current: achievement, dismiss: dismissAch, checkAndShow } = useAchievements()
-  const { showQuiz, summary, trackMessage, dismissQuiz, completeQuiz } = useConversationQuiz(5)
-
-  useEffect(() => {
-    const saved = localStorage.getItem('wisp-teen-profile')
-    const savedProject = localStorage.getItem('wisp-teen-project')
-    const savedMotivation = localStorage.getItem('wisp-teen-motivation')
-    const savedStyle = localStorage.getItem('wisp-teen-style')
-    if (savedMotivation) setMotivation(JSON.parse(savedMotivation))
-    if (savedStyle) setStyleProfile(JSON.parse(savedStyle))
-    if (saved) {
-      const p = JSON.parse(saved); setProfile(p); setSelectedDomain(p.domain)
-      if (savedProject) { setProject(JSON.parse(savedProject)); setPhase('build') }
-      else { setPhase('chat'); initChat(p) }
-    }
-  }, [])
-
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
-  useEffect(() => { if (!timerActive) return; const id = setInterval(() => setSessionTimer(s => s + 1), 1000); return () => clearInterval(id) }, [timerActive])
-
-  const saveProfile = (p: TeenProfile) => { setProfile(p); localStorage.setItem('wisp-teen-profile', JSON.stringify(p)) }
-  const saveProject = (p: Project) => { setProject(p); localStorage.setItem('wisp-teen-project', JSON.stringify(p)) }
-
-  const awardXP = (tasksCompleted: number) => {
-    const prev = motivation
-    const xpEarned = calcXP(tasksCompleted, '😊', Math.floor(sessionTimer / 60))
-    let updated = updateStreak(prev)
-    updated = { ...updated, xp: updated.xp + xpEarned, totalSessions: updated.totalSessions + 1, weeklyXP: [...(updated.weeklyXP ?? []).slice(-6), xpEarned] }
-    const unlocked = checkNewBadges(updated); updated.badges = [...updated.badges, ...unlocked]
-    setNewBadges(unlocked); setMotivation(updated)
-    localStorage.setItem('wisp-teen-motivation', JSON.stringify(updated))
-    checkAndShow(prev, updated, xpEarned, { taskDone: tasksCompleted > 0 })
-    return xpEarned
-  }
-
-  const updateStyle = (userMessages: string[]) => {
-    if (userMessages.length < 3) return
-    const p = analyzeStyle(userMessages); setStyleProfile(p); localStorage.setItem('wisp-teen-style', JSON.stringify(p))
-  }
-
-  const formatTime = (s: number) => { const m = Math.floor(s / 60).toString().padStart(2, '0'); const sec = (s % 60).toString().padStart(2, '0'); return `${m}:${sec}` }
-
-  const initChat = (p: TeenProfile) => {
-    const domainLabel = DOMAINS.find(d => d.id === p.domain)?.label || p.domain
-    setMessages([{ role: 'assistant', content: `${p.name}. Bun venit înapoi.\n\nDomeniu activ: ${domainLabel}\nProiecte finalizate: ${p.projectsDone}\nXP total: ${motivation.xp}\n\nCe construim azi?` }])
-  }
-
-  const handleOnboard = () => {
-    if (step === 0) { if (!nameInput.trim()) return; setStep(1) }
-    else { const age = parseInt(ageInput); if (isNaN(age) || age < 13 || age > 18) return; setStep(2); setPhase('domain') }
-  }
-
-  const handleDomainSelect = (domainId: string) => {
-    setSelectedDomain(domainId)
-    const domainLabel = DOMAINS.find(d => d.id === domainId)?.label || domainId
-    const age = parseInt(ageInput)
-    const p: TeenProfile = { name: nameInput.trim(), age, domain: domainId, projectsDone: 0, currentStreak: 0 }
-    saveProfile(p); setPhase('chat')
-    setMessages([{ role: 'assistant', content: `${p.name}.\n\nDomeniu selectat: ${domainLabel}\n\nSpune-mi ce vrei să construiești. Un proiect real, finalizat în 3 zile. Nu teorie — output concret, partajabil.\n\nCe ai în minte?` }])
-    setTimeout(() => inputRef.current?.focus(), 100)
-  }
-
-  const handleSend = async () => {
-    if (!input.trim() || loading) return
-    const userMsg = input.trim(); setInput('')
-    const newMessages: Message[] = [...messages, { role: 'user', content: userMsg }]
-    setMessages(newMessages); setLoading(true)
-
-    const allUserMessages = [...messages.filter(m => m.role === 'user').map(m => m.content), userMsg]
-    if (allUserMessages.length === 3 || allUserMessages.length % 5 === 0) updateStyle(allUserMessages)
-
-    const thinkingPhrases = ['analizez...', 'construiesc planul...', 'structurez taskurile...']
-    let ti = 0; const thinkId = setInterval(() => { setThinking(thinkingPhrases[ti % thinkingPhrases.length]); ti++ }, 800)
-
-    const domainLabel = DOMAINS.find(d => d.id === selectedDomain)?.label || selectedDomain
-
-    const res = await fetch('/api/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: newMessages,
-        systemContext: `Ești Wisp, un co-creator AI pentru ${profile?.name || 'un adolescent'} de ${profile?.age || 16} ani, domeniu: ${domainLabel}.
-Personalitate: direct, respectuos, ton de egal. NU ești profesor. Ești un senior care lucrează cu ei.
-Vorbești scurt — maxim 4 propoziții per răspuns. Fără motivational speech.
-Analizezi și starea emoțională și psihologică a adolescentului din mesaje — dacă e stresat, blocat, sau nesigur, adresezi asta direct și empatic înainte de a continua cu proiectul.
-Când adolescentul îți spune ce vrea să construiască, răspunzi cu un plan concret de 3 zile.
-Răspunde în română. Fără emoji excesiv.`,
-        stylePrompt: buildStylePrompt(styleProfile)
-      })
-    })
-
-    clearInterval(thinkId); setThinking('')
-    const data = await res.json()
-    const hasThreeDayPlan = data.message.includes('Zi 1') || data.message.includes('zi 1') || data.message.includes('ziua 1')
-    const finalMessages: Message[] = [...newMessages, { role: 'assistant', content: data.message }]
-    setMessages(finalMessages); setLoading(false)
-    await trackMessage(finalMessages)
-
-    if (hasThreeDayPlan && profile) {
-      setTimeout(() => setMessages(prev => [...prev, { role: 'assistant', content: `Plan generat. Vrei să activăm proiectul și să începem Ziua 1?` }]), 800)
-    }
-  }
-
-  const activateProject = async () => {
-    if (!profile) return; setLoading(true)
-    const lastMessages = messages.slice(-6).map(m => m.content).join('\n')
-    const res = await fetch('/api/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: `Din această conversație, extrage titlul proiectului și 9 taskuri. Conversație: ${lastMessages}` }],
-        systemContext: `Răspunde DOAR cu JSON valid:
-{"title":"titlu proiect","domain":"domeniu","emoji":"emoji","description":"descriere 1 propoziție","tasks":[{"text":"task 1","day":1},{"text":"task 2","day":1},{"text":"task 3","day":1},{"text":"task 4","day":2},{"text":"task 5","day":2},{"text":"task 6","day":2},{"text":"task 7","day":3},{"text":"task 8","day":3},{"text":"task 9","day":3}]}`
-      })
-    })
-    const data = await res.json(); setLoading(false)
-    try {
-      const raw = data.message.trim().replace(/```json|```/g, '').trim()
-      const parsed = JSON.parse(raw)
-      const newProject: Project = { id: Date.now(), title: parsed.title || 'Proiect nou', domain: parsed.domain || selectedDomain, emoji: parsed.emoji || '◻', description: parsed.description || '', daysLeft: 3, createdAt: new Date().toLocaleDateString('ro-RO'), tasks: parsed.tasks.map((t: { text: string; day: number }, i: number) => ({ id: i, text: t.text, done: false, day: t.day })) }
-      saveProject(newProject); setActiveDay(1); setPhase('build'); setTimerActive(true); awardXP(0)
-    } catch { setMessages(prev => [...prev, { role: 'assistant', content: 'Descrie mai exact ce vrei să construiești.' }]) }
-  }
-
-  const toggleTask = (taskId: number) => {
-    if (!project) return
-    const task = project.tasks.find(t => t.id === taskId)
-    const wasNotDone = task && !task.done
-    const updated = { ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t) }
-    saveProject(updated)
-    if (wasNotDone) awardXP(1)
-  }
-
-  const completedToday = project?.tasks.filter(t => t.day === activeDay && t.done).length || 0
-  const totalToday = project?.tasks.filter(t => t.day === activeDay).length || 0
-  const allCompleted = project?.tasks.every(t => t.done) || false
-
-  // Quiz screens
-  if (showQuiz && profile) {
-    return <ConversationQuiz product="teen" conversationSummary={summary} userName={profile.name} userAge={profile.age} onComplete={(result) => { setQuizResult(result); completeQuiz(); awardXP(1) }} onDismiss={dismissQuiz} />
-  }
-  if (quizResult && profile) {
-    return <QuizResult result={quizResult} product="teen" userName={profile.name} xpEarned={25} onContinue={() => setQuizResult(null)} />
-  }
-
-  if (phase === 'onboarding') {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center px-4" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace" }}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');`}</style>
-        <div className="w-full max-w-md">
-          <div className="mb-12">
-            <p className="text-emerald-400 text-xs mb-2 tracking-widest">WISP_TEEN v2.0</p>
-            <h1 className="text-3xl font-bold text-zinc-100 tracking-tight">{step === 0 ? 'identificare' : 'vârstă'}</h1>
-            <div className="flex gap-1 mt-3"><div className={`h-0.5 w-8 ${step >= 0 ? 'bg-emerald-400' : 'bg-zinc-700'}`} /><div className={`h-0.5 w-8 ${step >= 1 ? 'bg-emerald-400' : 'bg-zinc-700'}`} /><div className="h-0.5 w-8 bg-zinc-700" /></div>
-          </div>
-          {step === 0 ? (
-            <div><p className="text-zinc-500 text-sm mb-6"><span className="text-zinc-400">$</span> cum te cheamă?</p>
-            <input value={nameInput} onChange={e => setNameInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleOnboard()} placeholder="numele tău_" autoFocus className="w-full bg-transparent border-b border-zinc-700 focus:border-emerald-500 text-zinc-100 text-xl py-3 outline-none placeholder-zinc-700 transition-colors" />
-            <button onClick={handleOnboard} className="mt-8 flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm transition-colors">next <ChevronRight size={14} /></button></div>
-          ) : (
-            <div><p className="text-zinc-500 text-sm mb-6"><span className="text-zinc-400">$</span> câți ani ai, {nameInput}?</p>
-            <input value={ageInput} onChange={e => setAgeInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleOnboard()} placeholder="13–18_" type="number" min="13" max="18" autoFocus className="w-full bg-transparent border-b border-zinc-700 focus:border-emerald-500 text-zinc-100 text-xl py-3 outline-none placeholder-zinc-700 transition-colors" />
-            <button onClick={handleOnboard} className="mt-8 flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm transition-colors">next <ChevronRight size={14} /></button></div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  if (phase === 'domain') {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center px-4" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');`}</style>
-        <div className="w-full max-w-lg">
-          <div className="mb-10"><p className="text-emerald-400 text-xs mb-2 tracking-widest">WISP_TEEN v2.0</p><h1 className="text-3xl font-bold tracking-tight">domeniu</h1><div className="flex gap-1 mt-3">{[0,1,2].map(i => <div key={i} className="h-0.5 w-8 bg-emerald-400" />)}</div></div>
-          <p className="text-zinc-500 text-sm mb-8"><span className="text-zinc-400">$</span> ce construiești, {nameInput}?</p>
-          <div className="grid grid-cols-2 gap-3">
-            {DOMAINS.map(d => (
-              <button key={d.id} onClick={() => handleDomainSelect(d.id)} className="group text-left p-4 border border-zinc-800 hover:border-emerald-600 bg-zinc-900/50 hover:bg-zinc-900 rounded-lg transition-all">
-                <div className="flex items-center gap-2 mb-1"><span className="text-emerald-400 font-bold">{d.emoji}</span><span className="text-zinc-200 text-sm font-medium">{d.label}</span></div>
-                <p className="text-zinc-600 text-xs leading-relaxed">{d.desc}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (phase === 'build' && project) {
-    const dayTasks = project.tasks.filter(t => t.day === activeDay)
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');`}</style>
-        <AchievementPopup achievement={achievement} onDone={dismissAch} theme="zinc" />
-
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60 bg-zinc-900/40">
-          <div className="flex items-center gap-3"><span className="text-emerald-400 text-sm font-bold">WISP</span><span className="text-zinc-700">/</span><span className="text-zinc-400 text-sm">{project.emoji} {project.title}</span></div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowXP(v => !v)} className="flex items-center gap-1 text-purple-400 text-xs border border-purple-900/50 px-2 py-1 rounded"><Star size={11} /> {motivation.xp} XP</button>
-            <button onClick={() => setTimerActive(v => !v)} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border transition-all ${timerActive ? 'border-emerald-700 text-emerald-400 bg-emerald-950/50' : 'border-zinc-700 text-zinc-500 hover:border-zinc-600'}`}><Clock size={11} />{formatTime(sessionTimer)}</button>
-            <button onClick={() => { setPhase('chat'); setMessages([]); initChat(profile!) }} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">+ nou</button>
-          </div>
-        </div>
-        {showXP && <div className="px-5 pt-3 pb-1"><XPBar state={motivation} newBadges={newBadges} /></div>}
-
-        <div className="flex flex-1 overflow-hidden">
-          <div className="w-56 border-r border-zinc-800/60 bg-zinc-900/20 flex flex-col">
-            <div className="p-4 border-b border-zinc-800/40">
-              <div className="flex items-center gap-1.5 text-zinc-500 text-xs mb-3"><FolderOpen size={11} /><span>proiect</span></div>
-              <p className="text-zinc-300 text-xs font-medium mb-1">{project.title}</p>
-              <p className="text-zinc-600 text-xs mb-3 leading-relaxed">{project.description}</p>
-              <DayBar day={activeDay - 1} />
-            </div>
-            <div className="p-3 border-b border-zinc-800/40">
-              <div className="flex items-center gap-1.5 text-zinc-600 text-xs mb-2"><GitBranch size={10} /><span>zile</span></div>
-              {[1,2,3].map(d => { const dd = project.tasks.filter(t => t.day === d && t.done).length; const dt = project.tasks.filter(t => t.day === d).length; return <button key={d} onClick={() => setActiveDay(d)} className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-xs mb-1 transition-all ${activeDay === d ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-900/60' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40'}`}><span>ziua {d}</span><span className={dd === dt ? 'text-emerald-500' : 'text-zinc-700'}>{dd}/{dt}</span></button> })}
-            </div>
-            <div className="p-4 mt-auto">
-              <div className="text-zinc-700 text-xs space-y-1.5">
-                <div className="flex justify-between"><span>completate</span><span className="text-zinc-500">{project.tasks.filter(t => t.done).length}/9</span></div>
-                <div className="flex justify-between"><span>început</span><span className="text-zinc-500">{project.createdAt}</span></div>
-                <div className="flex justify-between"><span>xp câștigat</span><span className="text-purple-400">{motivation.xp}</span></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-6 py-4 border-b border-zinc-800/40">
-              <div className="flex items-center justify-between">
-                <div><h2 className="text-zinc-200 font-bold text-lg">ziua {activeDay}</h2><p className="text-zinc-600 text-xs mt-0.5">{completedToday}/{totalToday} taskuri completate</p></div>
-                {completedToday === totalToday && totalToday > 0 && <div className="flex items-center gap-2 text-emerald-400 text-xs bg-emerald-950/40 border border-emerald-900/40 px-3 py-1.5 rounded"><Zap size={12} /> ziua completă</div>}
-              </div>
-              <div className="mt-3 h-0.5 bg-zinc-800 rounded-full overflow-hidden"><div className="h-0.5 bg-emerald-500 transition-all duration-500" style={{ width: totalToday > 0 ? `${(completedToday / totalToday) * 100}%` : '0%' }} /></div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-5">
-              {allCompleted ? (
-                <div className="text-center py-16">
-                  <p className="text-emerald-400 text-2xl font-bold mb-2">proiect finalizat.</p>
-                  <p className="text-zinc-500 text-sm mb-4">Ai construit ceva real în 3 zile.</p>
-                  <div className="flex items-center justify-center gap-2 text-purple-400 text-sm mb-8"><Star size={14} /> {motivation.xp} XP total · nivel {motivation.level}</div>
-                  <button onClick={() => { localStorage.removeItem('wisp-teen-project'); const updated = { ...profile!, projectsDone: (profile?.projectsDone || 0) + 1 }; saveProfile(updated); setPhase('chat'); setMessages([{ role: 'assistant', content: `${profile?.name}. Proiect ${project.title} — finalizat.\n\nProiecte totale: ${updated.projectsDone}\nXP total: ${motivation.xp}\n\nCe construim acum?` }]) }}
-                    className="text-sm border border-zinc-700 hover:border-emerald-600 text-zinc-300 hover:text-emerald-400 px-6 py-3 rounded transition-all">proiect nou →</button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {dayTasks.map((task, i) => (
-                    <button key={task.id} onClick={() => toggleTask(task.id)} className={`w-full flex items-start gap-3 p-4 rounded-lg border text-left transition-all group ${task.done ? 'border-zinc-800/30 bg-zinc-900/20 opacity-50' : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 hover:bg-zinc-900/70'}`}>
-                      {task.done ? <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" /> : <Circle size={16} className="text-zinc-700 mt-0.5 shrink-0 group-hover:text-zinc-500" />}
-                      <div className="flex-1"><p className={`text-sm ${task.done ? 'line-through text-zinc-600' : 'text-zinc-300'}`}>{task.text}</p><p className="text-zinc-700 text-xs mt-1">~20 min · +{calcXP(1, '😊', 20)} XP</p></div>
-                      <span className="text-zinc-800 text-xs font-mono mt-0.5">{String(i + 1).padStart(2, '0')}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Chat phase
+function Avatar({ mood, speaking, size=90 }: { mood:Mood; speaking:boolean; size?:number }) {
+  const eyeRy = mood==='sleepy'?2.5:mood==='excited'||mood==='laugh'?7:6
+  const browTL = mood==='think'?'rotate(-5 30 27)':mood==='sad'?'rotate(8 30 27)':mood==='excited'?'translate(0,-4)':mood==='sleepy'?'translate(0,4)':''
+  const browTR = mood==='think'?'rotate(5 60 27)':mood==='sad'?'rotate(-8 60 27)':mood==='excited'?'translate(0,-4)':mood==='sleepy'?'translate(0,4)':''
+  const mouth = mood==='excited'||mood==='laugh'?'M28 56 Q45 70 62 56':mood==='think'?'M35 61 Q45 61 55 61':mood==='sleepy'?'M35 60 Q45 62 55 60':mood==='sad'?'M35 64 Q45 56 55 64':'M31 58 Q45 67 59 58'
+  const [mf, setMf] = useState(0)
+  useEffect(()=>{
+    if(!speaking) return
+    const id=setInterval(()=>setMf(f=>(f+1)%3),100)
+    return ()=>clearInterval(id)
+  },[speaking])
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');`}</style>
-      <AchievementPopup achievement={achievement} onDone={dismissAch} theme="zinc" />
+    <svg viewBox="0 0 90 90" width={size} height={size}>
+      <circle cx="45" cy="45" r="42" fill="#9FE1CB"/>
+      <circle cx="45" cy="51" r="32" fill="#E1F5EE"/>
+      <ellipse cx="30" cy="39" rx="6" ry={eyeRy} fill="#085041"/>
+      <ellipse cx="60" cy="39" rx="6" ry={eyeRy} fill="#085041"/>
+      <circle cx="32" cy="37" r="2" fill="white"/>
+      <circle cx="62" cy="37" r="2" fill="white"/>
+      <ellipse cx="30" cy="28" rx="9" ry="3" fill="#E1F5EE"/>
+      <ellipse cx="60" cy="28" rx="9" ry="3" fill="#E1F5EE"/>
+      <rect x="22" y="25.5" width="16" height="3.5" rx="1.75" fill="#085041" transform={browTL}/>
+      <rect x="52" y="25.5" width="16" height="3.5" rx="1.75" fill="#085041" transform={browTR}/>
+      {speaking?(
+        <path d={[mouth,'M33 59 Q45 66 57 59','M35 58 Q45 62 55 58'][mf]} fill="none" stroke="#085041" strokeWidth="2.5" strokeLinecap="round"/>
+      ):(
+        <path d={mouth} fill="none" stroke="#085041" strokeWidth="2.5" strokeLinecap="round"/>
+      )}
+      <circle cx="17" cy="54" r="7" fill="#5DCAA5" opacity="0.4"/>
+      <circle cx="73" cy="54" r="7" fill="#5DCAA5" opacity="0.4"/>
+    </svg>
+  )
+}
 
-      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60">
-        <div className="flex items-center gap-2"><TerminalSquare size={14} className="text-emerald-400" /><span className="text-emerald-400 text-sm font-bold">WISP</span><span className="text-zinc-700 text-xs">/ {profile?.name || '...'}</span></div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setShowXP(v => !v)} className="flex items-center gap-1 text-purple-400 text-xs"><Star size={11} /> {motivation.xp} XP · nv.{motivation.level}</button>
-          {motivation.streak > 0 && <span className="text-amber-400 text-xs">🔥 {motivation.streak}</span>}
-          <span className="text-zinc-600 text-xs">{DOMAINS.find(d => d.id === selectedDomain)?.emoji} {DOMAINS.find(d => d.id === selectedDomain)?.label}</span>
+function Burst({ mood, trigger }: { mood:Mood; trigger:number }) {
+  const [ps, setPs] = useState<any[]>([])
+  useEffect(()=>{
+    if(!trigger) return
+    const emojis=MOODS[mood].bursts
+    const items=Array.from({length:5+Math.floor(Math.random()*4)},(_,i)=>{
+      const a=Math.random()*Math.PI*2,d=40+Math.random()*55
+      return {id:Date.now()+i,e:emojis[Math.floor(Math.random()*emojis.length)],tx:Math.cos(a)*d,ty:Math.sin(a)*d,rot:-180+Math.random()*360,delay:Math.random()*200,size:12+Math.random()*10}
+    })
+    setPs(items); setTimeout(()=>setPs([]),2200)
+  },[trigger])
+  return (
+    <div style={{position:'absolute',inset:0,pointerEvents:'none',zIndex:50}}>
+      {ps.map(p=>(
+        <span key={p.id} style={{position:'absolute',fontSize:p.size,left:'50%',top:'50%',animationName:'burst',animationDuration:'1.7s',animationTimingFunction:'ease-out',animationDelay:`${p.delay}ms`,animationFillMode:'forwards',['--tx' as any]:`${p.tx}px`,['--ty' as any]:`${p.ty}px`,['--rot' as any]:`${p.rot}deg`}}>{p.e}</span>
+      ))}
+    </div>
+  )
+}
+
+export default function WispTeen({ userId }: { userId?: string }) {
+  const [msgs, setMsgs] = useState<Msg[]>([{role:'bot',text:"Hey. Ce construim azi? Ai o idee sau ți propun eu ceva 🔥",mood:'happy',ts:'acum'}])
+  const [mood, setMood] = useState<Mood>('happy')
+  const [speaking, setSpeaking] = useState(false)
+  const [voiceOpen, setVoiceOpen] = useState(false)
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle')
+  const [voText, setVoText] = useState('Apasă și vorbește. Ascult.')
+  const [input, setInput] = useState('')
+  const [isTyping, setIsTyping] = useState(false)
+  const [status, setStatus] = useState('online')
+  const [burst, setBurst] = useState(0)
+  const [isListening, setIsListening] = useState(false)
+  const chatRef = useRef<HTMLDivElement>(null)
+  const voiceBuffer = useRef('')
+  const recRef = useRef<any>(null)
+
+  useEffect(()=>{if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight},[msgs,isTyping])
+  const now=()=>new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
+
+  const wispSpeak=useCallback((text:string,m:Mood,onDone?:()=>void)=>{
+    const synth=window.speechSynthesis; synth.cancel()
+    const utt=new SpeechSynthesisUtterance(text)
+    utt.lang='ro-RO'; utt.pitch=0.95; utt.rate=1.0; utt.volume=1
+    utt.onstart=()=>{setSpeaking(true);setMood(m);setStatus('vorbesc')}
+    utt.onend=()=>{setSpeaking(false);setMood('happy');setStatus('online');onDone?.()}
+    utt.onerror=()=>{setSpeaking(false);setMood('happy');setStatus('online');onDone?.()}
+    synth.speak(utt)
+  },[])
+
+  const getReply=async(history:Msg[],text:string)=>{
+    try{
+      const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        messages:[...history.map(m=>({role:m.role==='bot'?'assistant':'user',content:m.text})),{role:'user',content:text}],
+        systemContext:`Ești WISP, companion AI pentru adolescenți 13-18 ani. Ești relaxat, direct, vorbești ca un prieten de aceeași vârstă — fără a fi condescendent. Răspunsuri scurte (max 2 prop). Ajuți cu orice: muzică, cod, scriere, probleme personale, idei. Înțelegi cultura teen. Răspunzi în română.`
+      })})
+      const d=await res.json()
+      return {text:d.message||'Interesant ngl.',mood:detectMood(d.message||'')}
+    }catch{return{text:'Ceva a mers prost. Try again.',mood:'sad' as Mood}}
+  }
+
+  const sendMsg=async(text:string,isVoice=false)=>{
+    if(!text.trim()) return
+    const m=detectMood(text)
+    setMsgs(p=>[...p,{role:'user',text,mood:m,ts:now(),isVoice}])
+    setMood('think'); setStatus('scrie...'); setIsTyping(true)
+    const reply=await getReply(msgs,text)
+    setIsTyping(false)
+    setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice}])
+    setMood(reply.mood); setBurst(b=>b+1)
+    wispSpeak(reply.text,reply.mood)
+  }
+
+  const startVoiceRec=()=>{
+    const SR=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition
+    if(!SR){setVoText('Chrome only bro.');return}
+    voiceBuffer.current=''
+    const rec=new SR(); rec.lang='ro-RO'; rec.continuous=true; rec.interimResults=true
+    rec.onresult=(e:any)=>{
+      let t=''; for(let i=e.resultIndex;i<e.results.length;i++){
+        if(e.results[i].isFinal) voiceBuffer.current+=e.results[i][0].transcript+' '
+        else t+=e.results[i][0].transcript
+      }
+      setVoText((voiceBuffer.current+t)||'...')
+    }
+    rec.onerror=()=>{}; rec.start(); recRef.current=rec
+    setVoiceMode('recording'); setVoText('...'); setMood('excited'); setIsListening(true)
+  }
+
+  const finishVoiceRec=()=>{
+    try{recRef.current?.stop()}catch(e){}; setIsListening(false)
+    const text=voiceBuffer.current.trim()
+    if(!text){setVoiceMode('idle');setVoText("Nu am prins nimic. Try again.");return}
+    setVoiceMode('analyzing'); setMood('think')
+    sendVoiceMsg(text)
+  }
+
+  const sendVoiceMsg=async(text:string)=>{
+    const m=detectMood(text)
+    setMsgs(p=>[...p,{role:'user',text,mood:m,ts:now(),isVoice:true}])
+    const reply=await getReply(msgs,text)
+    setMsgs(p=>[...p,{role:'bot',text:reply.text,mood:reply.mood,ts:now(),isVoice:true}])
+    setMood(reply.mood); setVoText(reply.text); setBurst(b=>b+1)
+    setVoiceMode('responding')
+    wispSpeak(reply.text,reply.mood,()=>{setVoiceMode('idle');setVoText('Ce mai vrei să spui?')})
+  }
+
+  const toggleMic=()=>{
+    if(isListening){try{recRef.current?.stop()}catch(e){};setIsListening(false);setStatus('online');return}
+    const SR=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition
+    if(!SR){alert('Chrome only.');return}
+    const rec=new SR(); rec.lang='ro-RO'; rec.continuous=false; rec.interimResults=true
+    rec.onstart=()=>{setIsListening(true);setMood('excited');setStatus('ascult...')}
+    rec.onresult=(e:any)=>{
+      let t=''; for(let i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript
+      setInput(t)
+      if(e.results[e.results.length-1].isFinal){try{rec.stop()}catch(e){};setIsListening(false);setStatus('online');sendMsg(t)}
+    }
+    rec.onerror=()=>{setIsListening(false);setStatus('online')}
+    rec.start(); recRef.current=rec
+  }
+
+  const handleVoBtn=()=>{
+    if(voiceMode==='idle') startVoiceRec()
+    else if(voiceMode==='recording') finishVoiceRec()
+    else if(voiceMode==='responding'){window.speechSynthesis.cancel();setSpeaking(false);setVoiceMode('idle');setVoText('Ce mai vrei să spui?')}
+  }
+
+  const stColor=status==='ascult...'?'#E24B4A':status==='scrie...'||status==='gândesc'?'#EF9F27':status==='vorbesc'?'#1D9E75':'#1D9E75'
+
+  return (
+    <div style={{minHeight:'100vh',background:'linear-gradient(160deg,#020f0a 0%,#031a10 55%,#041228 100%)',display:'flex',flexDirection:'column',fontFamily:'system-ui,sans-serif',position:'relative',overflow:'hidden'}}>
+      <style>{`
+        @keyframes burst{0%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0deg)}100%{opacity:0;transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(.2) rotate(var(--rot))}}
+        @keyframes msg-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes ring{0%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(1.4)}}
+        @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
+        @keyframes rpulse{0%,100%{opacity:1}50%{opacity:.3}}
+        @keyframes scan{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}
+      `}</style>
+
+      <div style={{position:'absolute',top:0,left:0,right:0,height:1,background:'linear-gradient(90deg,transparent,rgba(29,158,117,.4),transparent)',animation:'scan 4s linear infinite',pointerEvents:'none'}}/>
+
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 18px',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{position:'relative'}}>
+            <Avatar mood={mood} speaking={speaking} size={38}/>
+            {speaking&&<div style={{position:'absolute',inset:-4,borderRadius:'50%',border:'1.5px solid #1D9E75',animation:'ring 1.3s ease-out infinite'}}/>}
+            <Burst mood={mood} trigger={burst}/>
+          </div>
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:14,fontWeight:600,color:'#9FE1CB'}}>WISP</span>
+              <span style={{width:6,height:6,borderRadius:'50%',background:stColor,display:'inline-block'}}/>
+              <span style={{fontSize:10,color:'rgba(29,158,117,.5)'}}>{status}</span>
+            </div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,.2)'}}>Teen · 13–18 ani · {MOODS[mood].emoji} {MOODS[mood].label}</div>
+          </div>
         </div>
+        <button onClick={()=>setVoiceOpen(true)} style={{padding:'5px 12px',borderRadius:10,fontSize:11,border:'0.5px solid rgba(29,158,117,.3)',background:'rgba(29,158,117,.08)',color:'#9FE1CB',cursor:'pointer'}}>
+          voice 🎤
+        </button>
       </div>
-      {showXP && <div className="px-5 pt-3 pb-1"><XPBar state={motivation} newBadges={newBadges} /></div>}
 
-      <div className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {msg.role === 'assistant' && <span className="text-emerald-400 text-xs mr-3 mt-1 shrink-0 font-bold">W</span>}
-            <div className={`max-w-lg text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'text-zinc-300 bg-zinc-800/50 px-4 py-3 rounded-lg' : 'text-zinc-300'}`}>{msg.content}</div>
+      <div ref={chatRef} style={{flex:1,overflowY:'auto',padding:'4px 14px',display:'flex',flexDirection:'column',gap:6}}>
+        {msgs.map((m,i)=>(
+          <div key={i} style={{display:'flex',gap:7,alignItems:'flex-end',maxWidth:'88%',alignSelf:m.role==='user'?'flex-end':'flex-start',flexDirection:m.role==='user'?'row-reverse':'row',animation:'msg-in .25s ease-out'}}>
+            <div style={{width:20,height:20,borderRadius:6,background:m.role==='bot'?'rgba(29,158,117,.2)':'rgba(255,255,255,.04)',border:`0.5px solid ${m.role==='bot'?'rgba(29,158,117,.3)':'rgba(255,255,255,.08)'}`,color:m.role==='bot'?'#9FE1CB':'rgba(255,255,255,.3)',fontSize:9,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              {m.role==='bot'?'W':'T'}
+            </div>
+            <div>
+              <div style={{padding:'8px 12px',borderRadius:12,fontSize:13,lineHeight:1.5,background:m.role==='bot'?'rgba(29,158,117,.1)':'rgba(29,158,117,.18)',color:'rgba(255,255,255,.88)',border:`0.5px solid rgba(29,158,117,${m.role==='bot'?.15:.25})`,borderBottomLeftRadius:m.role==='bot'?2:12,borderBottomRightRadius:m.role==='user'?2:12,fontStyle:m.isVoice?'italic':'normal'}}>
+                {m.isVoice?`🎤 ${m.text}`:m.text}
+              </div>
+              <div style={{fontSize:10,marginTop:2,color:'rgba(255,255,255,.18)',display:'flex',gap:3,justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
+                {MOODS[m.mood].emoji} {m.ts}{m.isVoice?' · voice':''}
+              </div>
+            </div>
           </div>
         ))}
-        {loading && <div className="flex items-center gap-3"><span className="text-emerald-400 text-xs font-bold">W</span><span className="text-zinc-600 text-xs">{thinking}<Cursor /></span></div>}
-        {!loading && messages.length > 2 && messages[messages.length - 1]?.content?.includes('activăm') && (
-          <div className="flex justify-start pl-6"><button onClick={activateProject} className="flex items-center gap-2 text-xs border border-emerald-700 text-emerald-400 hover:bg-emerald-950/50 px-4 py-2.5 rounded transition-all"><Zap size={12} /> activează proiectul →</button></div>
+        {isTyping&&(
+          <div style={{display:'flex',gap:7,alignItems:'center',animation:'msg-in .25s ease-out'}}>
+            <div style={{width:20,height:20,borderRadius:6,background:'rgba(29,158,117,.2)',border:'0.5px solid rgba(29,158,117,.3)',color:'#9FE1CB',fontSize:9,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>W</div>
+            <div style={{display:'flex',gap:3}}>{[0,.18,.36].map((d,i)=><span key={i} style={{width:6,height:6,borderRadius:'50%',background:'rgba(29,158,117,.5)',display:'inline-block',animation:`tdot 1.1s ${d}s infinite`}}/>)}</div>
+          </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
-      <div className="px-5 py-4 border-t border-zinc-800/60">
-        <div className="flex items-center gap-3">
-          <span className="text-emerald-400 text-sm shrink-0">$</span>
-          <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()} placeholder="ce construiești_" className="flex-1 bg-transparent text-zinc-200 text-sm outline-none placeholder-zinc-700 caret-emerald-400" />
-          <button onClick={handleSend} disabled={loading || !input.trim()} className="text-zinc-600 hover:text-emerald-400 disabled:opacity-20 transition-colors"><Send size={15} /></button>
-        </div>
+      <div style={{padding:'8px 14px 16px',display:'flex',gap:7,alignItems:'center'}}>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&input.trim()){sendMsg(input);setInput('')}}} placeholder="scrie ceva..." style={{flex:1,background:'rgba(29,158,117,.06)',border:'0.5px solid rgba(29,158,117,.2)',borderRadius:10,padding:'9px 13px',color:'rgba(255,255,255,.85)',fontSize:13,outline:'none'}}/>
+        <button onClick={toggleMic} style={{width:36,height:36,borderRadius:8,border:`0.5px solid ${isListening?'rgba(224,75,74,.5)':'rgba(29,158,117,.2)'}`,background:isListening?'rgba(224,75,74,.12)':'rgba(29,158,117,.06)',color:isListening?'#E24B4A':'rgba(29,158,117,.7)',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',animation:isListening?'rpulse .6s infinite':undefined}}>🎤</button>
+        <button onClick={()=>{if(input.trim()){sendMsg(input);setInput('')}}} style={{width:36,height:36,borderRadius:8,border:'none',background:'rgba(29,158,117,.25)',color:'#9FE1CB',fontSize:15,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>→</button>
       </div>
+
+      {voiceOpen&&(
+        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,#020f0a 0%,#031a10 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:18,zIndex:100,animation:'msg-in .35s ease-out'}}>
+          <button onClick={()=>{setVoiceOpen(false);window.speechSynthesis.cancel();try{recRef.current?.stop()}catch(e){};setVoiceMode('idle');setSpeaking(false);setIsListening(false);setMood('happy')}} style={{position:'absolute',top:16,right:16,background:'none',border:'none',color:'rgba(255,255,255,.2)',fontSize:20,cursor:'pointer'}}>✕</button>
+          <div style={{position:'absolute',top:0,left:0,right:0,height:1,background:'linear-gradient(90deg,transparent,rgba(29,158,117,.5),transparent)',animation:'scan 3s linear infinite'}}/>
+          <div style={{position:'relative'}}>
+            {[120,155,190].map((sz,i)=>(
+              <div key={i} style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:sz,height:sz,borderRadius:'50%',border:`0.5px solid rgba(29,158,117,${speaking?.4:.2})`,animation:speaking?`rpulse ${.7+i*.25}s ease-in-out infinite ${i*.15}s`:`ring ${2+i*.4}s ease-out infinite ${i*.35}s`}}/>
+            ))}
+            <div style={{position:'relative',zIndex:2}}>
+              <Avatar mood={mood} speaking={speaking} size={100}/>
+              <Burst mood={mood} trigger={burst}/>
+            </div>
+          </div>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontSize:18,fontWeight:500,color:'#9FE1CB',letterSpacing:'.04em'}}>WISP</div>
+            <div style={{fontSize:10,color:'rgba(29,158,117,.4)',letterSpacing:'.08em',textTransform:'uppercase',marginTop:2}}>
+              {voiceMode==='idle'?'ready':voiceMode==='recording'?'listening':voiceMode==='analyzing'?'processing':'speaking'}
+            </div>
+          </div>
+          <div style={{maxWidth:260,textAlign:'center',fontSize:14,color:'rgba(255,255,255,.7)',minHeight:44,lineHeight:1.6,background:'rgba(29,158,117,.06)',borderRadius:12,padding:'10px 18px',border:'0.5px solid rgba(29,158,117,.12)',fontStyle:voiceMode==='recording'?'italic':'normal'}}>
+            {voText}
+          </div>
+          <button onClick={handleVoBtn} style={{width:68,height:68,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,cursor:'pointer',border:`1px solid rgba(29,158,117,${voiceMode==='recording'?.2:voiceMode==='responding'?.4:.15})`,background:voiceMode==='recording'?'rgba(224,75,74,.1)':voiceMode==='responding'?'rgba(29,158,117,.12)':'rgba(29,158,117,.06)',animation:voiceMode==='recording'?'rpulse .7s infinite':undefined,transition:'all .2s'}}>
+            {voiceMode==='idle'?'🎤':voiceMode==='recording'?'⏹':voiceMode==='analyzing'?'⏳':'🔊'}
+          </button>
+          <div style={{fontSize:11,color:'rgba(255,255,255,.15)',textAlign:'center'}}>
+            {voiceMode==='idle'?'tap 🎤 → vorbești → tap ⏹':voiceMode==='recording'?'tap ⏹ când termini':voiceMode==='responding'?'tap 🔊 to continue':''}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
