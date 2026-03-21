@@ -1,6 +1,3 @@
-// app/lib/useSyncProgress.ts
-// Sincronizează automat XP + streak în Supabase după fiecare update
-
 import { useEffect, useRef, useCallback } from 'react'
 import type { MotivationState } from './motivation'
 import { getLevel } from './motivation'
@@ -8,7 +5,6 @@ import { getLevel } from './motivation'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-// Generează sau recuperează un ID anonim stabil din localStorage
 function getAnonId(): string {
   if (typeof window === 'undefined') return 'ssr'
   let id = localStorage.getItem('wisp-anon-id')
@@ -19,21 +15,16 @@ function getAnonId(): string {
   return id
 }
 
-// Recuperează username salvat local
 function getStoredUsername(product: string): string {
   if (typeof window === 'undefined') return 'Utilizator'
   return localStorage.getItem(`${product}-username`) || 'Utilizator'
 }
 
-// Recuperează inițialele
 function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'U'
 }
 
-async function syncToSupabase(
-  motivation: MotivationState,
-  product: string
-): Promise<void> {
+async function syncToSupabase(motivation: MotivationState, product: string): Promise<void> {
   if (typeof window === 'undefined') return
   if (!SUPABASE_URL || !SUPABASE_KEY) return
 
@@ -43,7 +34,7 @@ async function syncToSupabase(
   const level = getLevel(motivation.xp).level
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/user_progress`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/user_progress`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -63,11 +54,6 @@ async function syncToSupabase(
         last_active: new Date().toISOString(),
       }),
     })
-
-    if (!res.ok) {
-      const err = await res.text()
-      console.warn('Supabase sync error:', err)
-    }
   } catch (e) {
     console.warn('Sync failed:', e)
   }
@@ -86,15 +72,11 @@ export function useSyncProgress(
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
       syncToSupabase(motivation, product)
-    }, 3000) // debounce 3s
+    }, 3000)
   }, [motivation, product])
 
   useEffect(() => {
-    // Sincronizează doar dacă XP sau streak s-a schimbat
-    if (
-      motivation.xp !== prevXP.current ||
-      motivation.streak !== prevStreak.current
-    ) {
+    if (motivation.xp !== prevXP.current || motivation.streak !== prevStreak.current) {
       prevXP.current = motivation.xp
       prevStreak.current = motivation.streak
       sync()
@@ -102,8 +84,6 @@ export function useSyncProgress(
   }, [motivation.xp, motivation.streak, sync])
 
   useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [])
 }
