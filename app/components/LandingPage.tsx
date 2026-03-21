@@ -117,6 +117,7 @@ function ParticleBg({ mx, my }: { mx: number; my: number }) {
     tx: (Math.random() - .5) * 100,
     ty: (Math.random() - .5) * 100,
     warm: i % 3 !== 0,
+    op: 0.06 + Math.random() * 0.04,
   })))
   return (
     <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
@@ -128,8 +129,8 @@ function ParticleBg({ mx, my }: { mx: number; my: number }) {
           height: p.type === 2 ? 0.5 : p.type === 3 ? p.size * .7 : p.size,
           borderRadius: p.type === 1 ? '50%' : p.type === 3 ? '2px' : 0,
           background: p.warm
-            ? `rgba(200,100,50,${0.06 + Math.random() * 0.04})`
-            : `rgba(140,70,200,${0.05 + Math.random() * 0.04})`,
+            ? `rgba(200,100,50,${p.op})`
+            : `rgba(140,70,200,${p.op * 0.9})`,
           border: p.type === 3 ? `0.5px solid ${p.warm ? 'rgba(220,130,80,.12)' : 'rgba(160,90,220,.1)'}` : 'none',
           transform: p.type === 0 ? 'rotate(45deg)' : 'none',
           animationName: 'pdrift',
