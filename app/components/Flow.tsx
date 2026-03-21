@@ -1,4 +1,5 @@
 'use client'
+import CognitiveGames from './CognitiveGames'
 import { useSyncProgress } from '../lib/useSyncProgress'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import XPBar from './XPBar'
@@ -183,7 +184,7 @@ export default function Flow({userId}:{userId?:string}) {
   const toggleTask=(id:number)=>{const u=tasks.map(t=>t.id===id?{...t,done:!t.done}:t);saveTasks(u);if(u.find(t=>t.id===id&&t.done))awardXP(1)}
   const removeTask=(id:number)=>saveTasks(tasks.filter(t=>t.id!==id))
   const now=()=>new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
-
+  const [showGames, setShowGames] = useState(false)
   const awardXP=useCallback((count:number)=>{
     const mins=Math.floor((Date.now()-sessionStart.current)/60000)
     const earned=calcXP(count,'😊',mins)
@@ -307,7 +308,8 @@ export default function Flow({userId}:{userId?:string}) {
             {showTasks?'− taskuri':`+ taskuri${totalTasks>0?` (${doneTasks}/${totalTasks})`:''}`}
           </button>
           <button onClick={()=>setShowChat(true)} style={{padding:'3px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(255,255,255,.08)',background:'transparent',color:'rgba(255,255,255,.2)',cursor:'pointer',fontFamily:'system-ui',transition:'all .3s'}}>≡ chat</button>
-          <button onClick={()=>setVoiceOpen(true)} style={{padding:'3px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(255,255,255,.08)',background:'transparent',color:'rgba(255,255,255,.2)',cursor:'pointer',fontFamily:'system-ui'}}>○ voice</button>
+<button onClick={()=>setShowGames(true)} style={{padding:'3px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(255,255,255,.08)',background:'transparent',color:'rgba(255,255,255,.2)',cursor:'pointer',fontFamily:'system-ui'}}>🧠 jocuri</button>
+<button onClick={()=>setVoiceOpen(true)} style={{padding:'3px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(255,255,255,.08)',background:'transparent',color:'rgba(255,255,255,.2)',cursor:'pointer',fontFamily:'system-ui'}}>○ voice</button>
         </div>
       </div>
 
@@ -408,6 +410,7 @@ export default function Flow({userId}:{userId?:string}) {
       )}
 
       <AchievementPopup achievement={achievement} onDone={dismiss} theme="dark"/>
+      {showGames&&<CognitiveGames product="flow" onClose={()=>setShowGames(false)}/>}
     </div>
   )
 }

@@ -1,4 +1,5 @@
 'use client'
+import CognitiveGames from './CognitiveGames'
 import { useSyncProgress } from '../lib/useSyncProgress'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import XPBar from './XPBar'
@@ -141,14 +142,14 @@ export default function Wisp({userId}:{userId?:string}){
   useSyncProgress(motivation, { product: 'junior' })
   useEffect(()=>{return()=>{stopSpeaking();try{recRef.current?.stop()}catch(e){}}},[])
   const now=()=>new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
-
+  const [showGames, setShowGames] = useState(false)
   const awardXP=useCallback((n:number)=>{
     const mins=Math.floor((Date.now()-sessionStart.current)/60000);const earned=calcXP(n,'😊',mins)
     let updated=updateStreak(motivation);updated={...updated,xp:updated.xp+earned,totalSessions:updated.totalSessions+1,weeklyXP:[...(updated.weeklyXP||[]).slice(-6),earned]}
     const unlocked=checkNewBadges(updated);updated.badges=[...updated.badges,...unlocked]
     setNewBadges(unlocked);setMotivation(updated);localStorage.setItem('wisp-motivation',JSON.stringify(updated));checkAndShow(motivation,updated,earned,{})
   },[motivation,checkAndShow])
-
+  
   const wispSpeak=useCallback((text:string,m:Mood,onDone?:()=>void)=>{
     speak(text,'junior',{onStart:()=>{setSpeaking(true);setMood(m);setStatus('vorbesc...')},onEnd:()=>{setSpeaking(false);setMood('happy');setStatus('');onDone?.()},onError:()=>{setSpeaking(false);setMood('happy');setStatus('');onDone?.()}})
   },[])
@@ -214,6 +215,7 @@ export default function Wisp({userId}:{userId?:string}){
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           <button onClick={()=>setShowXP(v=>!v)} style={{display:'flex',alignItems:'center',gap:4,padding:'4px 10px',borderRadius:12,fontSize:11,border:'0.5px solid rgba(127,119,221,.25)',background:'rgba(127,119,221,.08)',color:'#c8c5f5',cursor:'pointer'}}>⚡ {motivation.xp} XP</button>
           <button onClick={()=>setShowChat(true)} style={{padding:'4px 10px',borderRadius:12,fontSize:11,border:'0.5px solid rgba(127,119,221,.25)',background:'rgba(127,119,221,.08)',color:'#c8c5f5',cursor:'pointer'}}>≡ chat</button>
+          <button onClick={()=>setShowGames(true)} style={{padding:'3px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(255,255,255,.08)',background:'transparent',color:'rgba(255,255,255,.2)',cursor:'pointer'}}>🧠 jocuri</button>
           <button onClick={()=>setVoiceOpen(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:20,fontSize:12,border:'0.5px solid rgba(127,119,221,.3)',background:'rgba(127,119,221,.1)',color:'#c8c5f5',cursor:'pointer'}}>🎤 Voice</button>
         </div>
       </div>
@@ -281,6 +283,7 @@ export default function Wisp({userId}:{userId?:string}){
         </div>
       )}
       <AchievementPopup achievement={achievement} onDone={dismiss} theme="dark"/>
+      {showGames&&<CognitiveGames product="flow" onClose={()=>setShowGames(false)}/>}
     </div>
   )
 }

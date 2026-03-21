@@ -1,4 +1,5 @@
 'use client'
+import CognitiveGames from './CognitiveGames'
 import { useSyncProgress } from '../lib/useSyncProgress'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import XPBar from './XPBar'
@@ -191,7 +192,7 @@ export default function WispTeen({userId}:{userId?:string}){
   const toggleMic=()=>{if(isListening){try{recRef.current?.stop()}catch(e){};setIsListening(false);setStatus('');return}const SR=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!SR){alert('Necesită Chrome.');return}const rec=new SR();rec.lang='ro-RO';rec.continuous=false;rec.interimResults=true;rec.onstart=()=>{setIsListening(true);setMood('focus');setStatus('ascult')};rec.onresult=(e:any)=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript;setInput(t);if(e.results[e.results.length-1].isFinal){try{rec.stop()}catch(e){};setIsListening(false);setStatus('');sendMsg(t)}};rec.onerror=()=>{setIsListening(false);setStatus('')};rec.start();recRef.current=rec}
   const handleVoBtn=()=>{if(voiceMode==='idle')startVoiceRec();else if(voiceMode==='recording')finishVoiceRec();else if(voiceMode==='responding'){stopSpeaking();setSpeaking(false);setVoiceMode('idle');setVoText('Sunt gata.')}}
   const mc=MOODS[mood].color
-
+  const [showGames, setShowGames] = useState(false)
   return(
     <div style={{height:'100vh',background:'#07080f',display:'flex',flexDirection:'column',fontFamily:'system-ui,sans-serif',position:'relative',overflow:'hidden',color:'rgba(255,255,255,.85)'}}>
       <style>{`
@@ -221,6 +222,7 @@ export default function WispTeen({userId}:{userId?:string}){
             {status||MOODS[mood].label}
           </div>
           <button onClick={()=>setShowChat(true)} style={{padding:'3px 8px',borderRadius:16,fontSize:10,border:'0.5px solid rgba(120,130,255,.18)',background:'rgba(120,130,255,.06)',color:'rgba(160,170,255,.6)',cursor:'pointer'}}>≡</button>
+          <button onClick={()=>setShowGames(true)} style={{padding:'3px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(255,255,255,.08)',background:'transparent',color:'rgba(255,255,255,.2)',cursor:'pointer'}}>🧠 jocuri</button>
           <button onClick={()=>setVoiceOpen(true)} style={{padding:'4px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(120,130,255,.2)',background:'rgba(120,130,255,.07)',color:'rgba(160,170,255,.7)',cursor:'pointer'}}>🎤 voice</button>
         </div>
       </div>
@@ -296,6 +298,7 @@ export default function WispTeen({userId}:{userId?:string}){
         </div>
       )}
       <AchievementPopup achievement={achievement} onDone={dismiss} theme="dark"/>
+      {showGames&&<CognitiveGames product="flow" onClose={()=>setShowGames(false)}/>}
     </div>
   )
 }
