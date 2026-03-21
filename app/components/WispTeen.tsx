@@ -303,7 +303,7 @@ function ConfessOverlay({onClose,onSend}:{onClose:()=>void;onSend:(t:string)=>vo
 }
 
 function BattleOverlay({onClose,lastScore,gameName}:{onClose:()=>void;lastScore:number;gameName:string}){
-  const botScore=Math.floor(Math.random()*80)+20
+  const botScore=useRef(Math.floor(Math.random()*80)+20).current
   const won=lastScore>botScore
   const roast=ROASTS[Math.floor(Math.random()*ROASTS.length)]
   return(
@@ -661,7 +661,7 @@ export default function WispTeen({userId}:{userId?:string}){
           </div>
           <button onClick={()=>setShowChat(true)} style={{padding:'3px 8px',borderRadius:16,fontSize:10,border:'0.5px solid rgba(120,130,255,.18)',background:'rgba(120,130,255,.06)',color:'rgba(160,170,255,.6)',cursor:'pointer'}}>≡</button>
           <button onClick={()=>setShowGames(true)} style={{padding:'3px 8px',borderRadius:16,fontSize:10,border:'0.5px solid rgba(120,130,255,.18)',background:'rgba(120,130,255,.06)',color:'rgba(160,170,255,.6)',cursor:'pointer'}}>🧠</button>
-          <button onClick={()=>{setLastGameScore(Math.floor(Math.random()*60)+10);setLastGameName('Math Sprint');setShowBattle(true)}} style={{padding:'3px 8px',borderRadius:16,fontSize:10,border:'0.5px solid rgba(255,200,80,.18)',background:'rgba(255,200,80,.06)',color:'rgba(255,200,80,.6)',cursor:'pointer'}}>⚔</button>
+          <button onClick={()=>{if(lastGameScore>0){setShowBattle(true)}else{setCurrentBotText('joacă un joc mai întâi, apoi te bat eu 😏')}}} style={{padding:'3px 8px',borderRadius:16,fontSize:10,border:'0.5px solid rgba(255,200,80,.18)',background:'rgba(255,200,80,.06)',color:'rgba(255,200,80,.6)',cursor:'pointer'}}>⚔</button>
           <button onClick={()=>setVoiceOpen(true)} style={{padding:'4px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(120,130,255,.2)',background:'rgba(120,130,255,.07)',color:'rgba(160,170,255,.7)',cursor:'pointer'}}>🎤 voice</button>
         </div>
       </div>
@@ -751,7 +751,13 @@ export default function WispTeen({userId}:{userId?:string}){
         </div>
       )}
       <AchievementPopup achievement={achievement} onDone={dismiss} theme="dark"/>
-      {showGames&&<CognitiveGames product="teen" onClose={()=>setShowGames(false)}/>}
+     {showGames&&<CognitiveGames product="teen" onClose={()=>{
+  setShowGames(false)
+  setTimeout(()=>{
+    const best=parseInt(localStorage.getItem('best-math')||localStorage.getItem('best-stroop')||localStorage.getItem('best-reaction')||'0')
+    if(best>0){setLastGameScore(best);setLastGameName('Joc');setShowBattle(true)}
+  },500)
+}}/>}
     </div>
   )
 }
