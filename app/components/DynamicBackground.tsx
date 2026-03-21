@@ -102,7 +102,7 @@ export default function DynamicBackground({mood,intensity=20,keywordParticles=[]
   return (
     <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
       {/* background gradient — transitioneaza la schimbare mood */}
-      <div style={{position:'absolute',inset:0,background:`radial-gradient(ellipse at 25% 35%, ${c.acc} 0%, transparent 55%), radial-gradient(ellipse at 75% 65%, ${c.acc} 0%, transparent 50%), linear-gradient(160deg,${c.a1} 0%,${c.a2} 100%)`,transition:'background 2.5s ease'}}/>
+      <div style={{position:'absolute',inset:0,background:`radial-gradient(ellipse at 25% 35%, ${c.acc} 0%, transparent 55%), radial-gradient(ellipse at 75% 65%, ${c.acc} 0%, transparent 50%), linear-gradient(160deg,${c.a1} 0%,${c.a2} 100%)`,transition:'background 5s ease'}}/>
 
       {/* figuri animate */}
       {items.current.slice(0,count).map(p=>(
