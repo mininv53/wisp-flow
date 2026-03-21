@@ -12,6 +12,7 @@ import DynamicBackground, { useDynamicBg, type BgMood } from './DynamicBackgroun
 type Mood = 'happy'|'excited'|'think'|'sleepy'|'sad'|'laugh'|'love'
 type VoiceMode = 'idle'|'recording'|'analyzing'|'responding'
 interface Msg{role:'user'|'bot';text:string;mood:Mood;ts:string;isVoice?:boolean}
+interface GameProposal{gameId:string;gameName:string;gameIcon:string;gameColor:string;declined?:boolean}
 
 const MOODS:Record<Mood,{emoji:string;label:string;bursts:string[];bg:BgMood}> = {
   happy:   {emoji:'😊',label:'fericit',    bursts:['💜','⭐','✨','🌟'],bg:'happy'},
@@ -21,6 +22,32 @@ const MOODS:Record<Mood,{emoji:string;label:string;bursts:string[];bg:BgMood}> =
   sad:     {emoji:'😟',label:'îngrijorat', bursts:['💙','🤗','💛','🌸'],bg:'sad'},
   laugh:   {emoji:'😄',label:'râd',        bursts:['😂','🎉','💛','✨','🎊'],bg:'laugh'},
   love:    {emoji:'🥰',label:'afectuos',   bursts:['❤️','💜','💕','🌸','💫'],bg:'love'},
+}
+
+const GAME_SUGGESTIONS = [
+  {gameId:'math',gameName:'Math Sprint',gameIcon:'⚡',gameColor:'#43D9A3'},
+  {gameId:'memory',gameName:'Memory Cards',gameIcon:'🃏',gameColor:'#FF6584'},
+  {gameId:'oddone',gameName:'Odd One Out',gameIcon:'🧩',gameColor:'#00BCD4'},
+  {gameId:'reaction',gameName:'Reaction',gameIcon:'🎯',gameColor:'#FFEB3B'},
+  {gameId:'simon',gameName:'Simon Says',gameIcon:'🎨',gameColor:'#FF9E3D'},
+  {gameId:'schulte',gameName:'Schulte',gameIcon:'🔢',gameColor:'#6C63FF'},
+]
+
+const BORED_TEXTS_WISP = [
+  'Știi ce ar fi super acum? Un joc rapid! Vrei să jucăm ceva? 🎮',
+  'Am o idee! Hai să facem un joc de 60 secunde — te ajut să fii mai deștept! ⭐',
+  'Creierul tău e pregătit pentru o provocare? Am un joc special pentru tine! 🧠',
+  'Pauză de joc? 60 de secunde și câștigăm XP împreună! 🎯',
+  'Oooh, am găsit ceva super fun! Un mini-joc magic te așteaptă! ✨',
+]
+
+function shouldProposeGame(msgs: Msg[], msgCount: number, lastProposedAt: number): boolean {
+  if (msgCount - lastProposedAt < 4) return false
+  const lastUserMsgs = msgs.filter(m => m.role === 'user').slice(-3).map(m => m.text.toLowerCase()).join(' ')
+  const boredSignals = /plictis|nu știu|hmm|ok\.|și\.|aha\./.test(lastUserMsgs) && lastUserMsgs.length < 70
+  const stressSignals = /obosit|greu|nu pot|ajutor|nu înțeleg/.test(lastUserMsgs)
+  const randomChance = msgCount - lastProposedAt > 6 && Math.random() < 0.2
+  return boredSignals || stressSignals || randomChance
 }
 
 function detectMood(t:string):Mood {
@@ -47,6 +74,30 @@ function useTypingText(fullText:string,active:boolean,speed=45){
 function TypingMsg({text,speed=45}:{text:string;speed?:number}){
   const d=useTypingText(text,true,speed)
   return <>{d}<span style={{opacity:d.length<text.length?1:0,animation:'cursor-blink .7s infinite',color:'rgba(127,119,221,.6)'}}>▌</span></>
+}
+
+function GameProposalCard({proposal,onAccept,onDecline,botText}:{
+  proposal:GameProposal;onAccept:()=>void;onDecline:()=>void;botText:string
+}) {
+  if(proposal.declined) return (
+    <div style={{fontSize:15,color:'rgba(255,255,255,.5)',animation:'text-appear .5s ease-out',lineHeight:1.8}}>
+      ok, știi unde sunt când vrei! 🌟
+    </div>
+  )
+  return (
+    <div style={{animation:'text-appear .6s ease-out',textAlign:'center'}}>
+      <div style={{fontSize:15,lineHeight:1.8,color:'rgba(255,255,255,.85)',marginBottom:14,fontWeight:400}}>{botText}</div>
+      <div style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:10,padding:'14px 20px',borderRadius:16,background:`${proposal.gameColor}15`,border:`1px solid ${proposal.gameColor}44`}}>
+        <div style={{fontSize:30}}>{proposal.gameIcon}</div>
+        <div style={{fontSize:14,fontWeight:700,color:'white'}}>{proposal.gameName}</div>
+        <div style={{fontSize:10,color:'rgba(255,255,255,.4)'}}>60 secunde · cognitiv</div>
+        <div style={{display:'flex',gap:8,marginTop:4}}>
+          <button onClick={onAccept} style={{padding:'8px 20px',borderRadius:20,border:'none',background:proposal.gameColor,color:'white',fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .2s'}}>Da, hai! 🎮</button>
+          <button onClick={onDecline} style={{padding:'8px 16px',borderRadius:20,border:'1px solid rgba(255,255,255,.1)',background:'transparent',color:'rgba(255,255,255,.3)',fontSize:12,cursor:'pointer'}}>Mai târziu</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function Avatar({mood,speaking,size=140,waves=false}:{mood:Mood;speaking:boolean;size?:number;waves?:boolean}){
@@ -122,16 +173,19 @@ export default function Wisp({userId}:{userId?:string}){
   const [voiceMode,setVoiceMode]=useState<VoiceMode>('idle')
   const [voText,setVoText]=useState('Apasă și vorbește cu mine! 🎤')
   const [input,setInput]=useState('')
-  const [isTyping,setIsTyping]=useState(false)
   const [status,setStatus]=useState('')
   const [burst,setBurst]=useState(0)
   const [isListening,setIsListening]=useState(false)
   const [showXP,setShowXP]=useState(false)
   const [showChat,setShowChat]=useState(false)
+  const [showGames,setShowGames]=useState(false)
   const [currentBotText,setCurrentBotText]=useState('Salut! Sunt WISP, prietenul tău magic! ✨ Ce aventură explorăm azi?')
   const [currentBotMood,setCurrentBotMood]=useState<Mood>('happy')
   const [showTyping,setShowTyping]=useState(false)
   const [pendingUserText,setPendingUserText]=useState('')
+  const [currentProposal,setCurrentProposal]=useState<GameProposal|null>(null)
+  const msgCountRef=useRef(0)
+  const lastProposedAtRef=useRef(0)
   const [motivation,setMotivation]=useState<MotivationState>(()=>{if(typeof window==='undefined')return defaultMotivation;const s=localStorage.getItem('wisp-motivation');return s?JSON.parse(s):defaultMotivation})
   const [newBadges,setNewBadges]=useState<string[]>([])
   const {current:achievement,dismiss,checkAndShow}=useAchievements()
@@ -142,14 +196,14 @@ export default function Wisp({userId}:{userId?:string}){
   useSyncProgress(motivation, { product: 'junior' })
   useEffect(()=>{return()=>{stopSpeaking();try{recRef.current?.stop()}catch(e){}}},[])
   const now=()=>new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
-  const [showGames, setShowGames] = useState(false)
+
   const awardXP=useCallback((n:number)=>{
     const mins=Math.floor((Date.now()-sessionStart.current)/60000);const earned=calcXP(n,'😊',mins)
     let updated=updateStreak(motivation);updated={...updated,xp:updated.xp+earned,totalSessions:updated.totalSessions+1,weeklyXP:[...(updated.weeklyXP||[]).slice(-6),earned]}
     const unlocked=checkNewBadges(updated);updated.badges=[...updated.badges,...unlocked]
     setNewBadges(unlocked);setMotivation(updated);localStorage.setItem('wisp-motivation',JSON.stringify(updated));checkAndShow(motivation,updated,earned,{})
   },[motivation,checkAndShow])
-  
+
   const wispSpeak=useCallback((text:string,m:Mood,onDone?:()=>void)=>{
     speak(text,'junior',{onStart:()=>{setSpeaking(true);setMood(m);setStatus('vorbesc...')},onEnd:()=>{setSpeaking(false);setMood('happy');setStatus('');onDone?.()},onError:()=>{setSpeaking(false);setMood('happy');setStatus('');onDone?.()}})
   },[])
@@ -159,16 +213,49 @@ export default function Wisp({userId}:{userId?:string}){
     catch{return{text:'Hopa! Ceva nu a mers. Încearcă din nou! 🌟',mood:'happy' as Mood}}
   }
 
+  const proposeGame=(currentMsgs:Msg[])=>{
+    const game=GAME_SUGGESTIONS[Math.floor(Math.random()*GAME_SUGGESTIONS.length)]
+    const text=BORED_TEXTS_WISP[Math.floor(Math.random()*BORED_TEXTS_WISP.length)]
+    const proposal:GameProposal={...game}
+    lastProposedAtRef.current=msgCountRef.current
+    setTimeout(()=>{
+      setCurrentProposal(proposal)
+      setCurrentBotText(text)
+      setCurrentBotMood('excited')
+      setMsgs(p=>[...p,{role:'bot' as const,text,mood:'excited',ts:now()}])
+      wispSpeak(text,'excited')
+    },1000)
+  }
+
   const sendMsg=async(text:string,isVoice=false)=>{
-    if(!text.trim())return;const m=detectMood(text)
+    if(!text.trim())return
+    setCurrentProposal(null)
+    const m=detectMood(text)
+    msgCountRef.current+=1
     setPendingUserText(text)
-    setMsgs(p=>[...p,{role:'user',text,mood:m,ts:now(),isVoice}])
+    const currentMsgs=[...msgs,{role:'user' as const,text,mood:m,ts:now(),isVoice}]
+    setMsgs(currentMsgs)
     setMood('think');setStatus('mă gândesc...');setShowTyping(true);setCurrentBotText('')
     const reply=await getReply(msgs,text)
     setShowTyping(false);setPendingUserText('')
     setMsgs(p=>[...p,{role:'bot' as const,text:reply.text,mood:reply.mood,ts:now(),isVoice}])
     setCurrentBotText(reply.text);setCurrentBotMood(reply.mood)
     setMood(reply.mood);setBurst(b=>b+1);awardXP(1);wispSpeak(reply.text,reply.mood)
+    if(shouldProposeGame(currentMsgs,msgCountRef.current,lastProposedAtRef.current)){
+      proposeGame(currentMsgs)
+    }
+  }
+
+  const handleAcceptGame=()=>{
+    setShowGames(true)
+    setCurrentProposal(null)
+  }
+  const handleDeclineGame=()=>{
+    setCurrentProposal(prev=>prev?{...prev,declined:true}:null)
+    setTimeout(()=>{
+      setCurrentBotText('ok, știi unde sunt când vrei! 🌟')
+      setCurrentProposal(null)
+    },1200)
   }
 
   const startVoiceRec=()=>{const SR=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!SR){setVoText('Folosește Chrome! 🌐');return}voiceBuffer.current='';const rec=new SR();rec.lang='ro-RO';rec.continuous=true;rec.interimResults=true;rec.onresult=(e:any)=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)voiceBuffer.current+=e.results[i][0].transcript+' ';else t+=e.results[i][0].transcript}setVoText((voiceBuffer.current+t)||'...')};rec.onerror=()=>{};rec.start();recRef.current=rec;setVoiceMode('recording');setVoText('...');setMood('excited');setIsListening(true)}
@@ -200,12 +287,10 @@ export default function Wisp({userId}:{userId?:string}){
         @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
         @keyframes text-appear{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
         @keyframes user-fade{0%{opacity:.55}60%{opacity:.35}100%{opacity:.12}}
-        @keyframes ring{0%{opacity:.6;transform:scale(1)}100%{opacity:0;transform:scale(1.5)}}
       `}</style>
 
       <DynamicBackground mood={bgMood} intensity={intensity} keywordParticles={kwParticles}/>
 
-      {/* HEADER */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 18px',flexShrink:0,position:'relative',zIndex:3}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <span style={{fontSize:18}}>✨</span>
@@ -215,42 +300,40 @@ export default function Wisp({userId}:{userId?:string}){
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           <button onClick={()=>setShowXP(v=>!v)} style={{display:'flex',alignItems:'center',gap:4,padding:'4px 10px',borderRadius:12,fontSize:11,border:'0.5px solid rgba(127,119,221,.25)',background:'rgba(127,119,221,.08)',color:'#c8c5f5',cursor:'pointer'}}>⚡ {motivation.xp} XP</button>
           <button onClick={()=>setShowChat(true)} style={{padding:'4px 10px',borderRadius:12,fontSize:11,border:'0.5px solid rgba(127,119,221,.25)',background:'rgba(127,119,221,.08)',color:'#c8c5f5',cursor:'pointer'}}>≡ chat</button>
-          <button onClick={()=>setShowGames(true)} style={{padding:'3px 10px',borderRadius:20,fontSize:10,border:'0.5px solid rgba(255,255,255,.08)',background:'transparent',color:'rgba(255,255,255,.2)',cursor:'pointer'}}>🧠 jocuri</button>
+          <button onClick={()=>setShowGames(true)} style={{padding:'4px 10px',borderRadius:12,fontSize:11,border:'0.5px solid rgba(127,119,221,.25)',background:'rgba(127,119,221,.08)',color:'#c8c5f5',cursor:'pointer'}}>🧠 jocuri</button>
           <button onClick={()=>setVoiceOpen(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:20,fontSize:12,border:'0.5px solid rgba(127,119,221,.3)',background:'rgba(127,119,221,.1)',color:'#c8c5f5',cursor:'pointer'}}>🎤 Voice</button>
         </div>
       </div>
 
       {showXP&&<div style={{padding:'0 18px 10px',position:'relative',zIndex:3}}><XPBar state={motivation} newBadges={newBadges}/></div>}
 
-      {/* CENTRU — robot mare + text */}
       <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',position:'relative',zIndex:2,padding:'0 20px'}}>
-
-        {/* Robot */}
         <div style={{position:'relative',animation:'breathe-av 4.5s ease-in-out infinite',marginBottom:24}}>
           <Burst mood={mood} trigger={burst}/>
           <Avatar mood={mood} speaking={speaking} size={150} waves={true}/>
         </div>
-
-        {/* Nume + status */}
         <div style={{textAlign:'center',marginBottom:20}}>
           <div style={{fontSize:14,fontWeight:600,color:'#c8c5f5',letterSpacing:'.04em'}}>{MOODS[mood].emoji} WISP</div>
           {status&&<div style={{fontSize:10,color:'rgba(127,119,221,.5)',marginTop:4,animation:'fade-in .3s ease-out'}}>{status}</div>}
         </div>
-
-        {/* Răspunsul botului */}
         <div style={{maxWidth:320,textAlign:'center',minHeight:70}}>
           {showTyping?(
             <div style={{display:'flex',gap:5,justifyContent:'center',alignItems:'center',height:70}}>
               {[0,.2,.4].map((d,i)=><span key={i} style={{width:8,height:8,borderRadius:'50%',background:'rgba(127,119,221,.4)',display:'inline-block',animation:`tdot 1.2s ${d}s infinite`}}/>)}
             </div>
+          ):currentProposal?(
+            <GameProposalCard
+              proposal={currentProposal}
+              botText={currentBotText}
+              onAccept={handleAcceptGame}
+              onDecline={handleDeclineGame}
+            />
           ):(
             <div key={currentBotText} style={{fontSize:16,lineHeight:1.8,color:'rgba(255,255,255,.88)',fontWeight:400,letterSpacing:'.01em',animation:'text-appear .5s ease-out'}}>
               <TypingMsg text={currentBotText} speed={42}/>
             </div>
           )}
         </div>
-
-        {/* Textul userului — placeholder */}
         {pendingUserText&&(
           <div style={{marginTop:18,fontSize:12,color:'rgba(255,255,255,.25)',fontStyle:'italic',maxWidth:280,textAlign:'center',animation:'user-fade 2.5s ease-out forwards'}}>
             "{pendingUserText}"
@@ -258,7 +341,6 @@ export default function Wisp({userId}:{userId?:string}){
         )}
       </div>
 
-      {/* INPUT */}
       <div style={{padding:'0 14px 18px',position:'relative',zIndex:3}}>
         <div style={{display:'flex',gap:8,alignItems:'center',background:'rgba(127,119,221,.07)',border:'0.5px solid rgba(127,119,221,.2)',borderRadius:20,padding:'10px 14px',backdropFilter:'blur(16px)',transition:'all .4s'}}>
           <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&input.trim()){sendMsg(input);setInput('')}}} placeholder="Scrie-mi ceva magic… ✨" style={{flex:1,background:'transparent',border:'none',color:'#fff',fontSize:13,outline:'none',fontFamily:'system-ui'}}/>
@@ -268,7 +350,6 @@ export default function Wisp({userId}:{userId?:string}){
       </div>
 
       {showChat&&<ChatOverlay msgs={msgs} onClose={()=>setShowChat(false)}/>}
-
       {voiceOpen&&(
         <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,.97)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20,zIndex:100,animation:'fade-in .4s ease-out'}}>
           <DynamicBackground mood={bgMood} intensity={50}/>
@@ -283,7 +364,7 @@ export default function Wisp({userId}:{userId?:string}){
         </div>
       )}
       <AchievementPopup achievement={achievement} onDone={dismiss} theme="dark"/>
-      {showGames&&<CognitiveGames product="flow" onClose={()=>setShowGames(false)}/>}
+      {showGames&&<CognitiveGames product="junior" onClose={()=>setShowGames(false)}/>}
     </div>
   )
 }
