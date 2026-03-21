@@ -16,22 +16,21 @@ const MOODS: Record<Mood,{sym:string,label:string,color:string,bursts:string[]}>
   focus:   { sym:'◈', label:'focus',   color:'rgba(130,180,255,.8)', bursts:['◈','◆','▸','·'] },
   low:     { sym:'◌', label:'obosit',  color:'rgba(140,140,180,.6)', bursts:['◌','○','·','◦'] },
   error:   { sym:'◍', label:'greu',    color:'rgba(220,130,130,.8)', bursts:['◍','○','·'] },
-  boost:   { sym:'◉', label:'hype',    color:'rgba(160,220,180,.8)', bursts:['◉','◎','○','·'] },
+  boost:   { sym:'◉', label:'rebel',   color:'rgba(160,220,180,.8)', bursts:['◉','◎','○','·'] },
   sync:    { sym:'⟡', label:'ok',      color:'rgba(180,170,255,.8)', bursts:['⟡','◎','○','·'] },
 }
 
 function detectMood(t: string): Mood {
   const s = t.toLowerCase()
-  if (/super|wow|fire|tare|hype|sick|dope/.test(s)) return 'boost'
-  if (/de ce|cum|explic|înțeleg|adică|hmm/.test(s)) return 'process'
+  if (/super|wow|fire|tare|hype|sick|dope|rebel|scap/.test(s)) return 'boost'
+  if (/de ce|cum|explic|înțeleg|adică|hmm|lecție|tema/.test(s)) return 'process'
   if (/trist|rău|greu|nu pot|ajutor|deprimat/.test(s)) return 'error'
   if (/obosit|somnoros|epuizat|nu mai/.test(s)) return 'low'
-  if (/cod|build|proiect|muzic|scri|dev/.test(s)) return 'focus'
+  if (/cod|build|proiect|muzic|scri|dev|tema|lecție/.test(s)) return 'focus'
   if (/mulțumesc|mișto|respect|cool|ok/.test(s)) return 'sync'
   return 'idle'
 }
 
-// typing hook — 35ms/char pentru Teen (ritm natural, conversațional)
 function useTypingText(fullText: string, active: boolean, speed = 35) {
   const [displayed, setDisplayed] = useState('')
   useEffect(() => {
@@ -60,11 +59,7 @@ function Avatar({ mood, speaking, size=80 }: { mood:Mood; speaking:boolean; size
   const browTR = mood==='process'?'rotate(5 60 27)':mood==='error'?'rotate(-8 60 27)':mood==='boost'?'translate(0,-4)':mood==='low'?'translate(0,4)':''
   const mouth = mood==='boost'?'M26 57 Q45 71 64 57':mood==='process'?'M33 61 Q45 61 57 61':mood==='low'?'M34 60 Q45 62 56 60':mood==='error'?'M33 64 Q45 57 57 64':'M30 58 Q45 68 60 58'
   const [mf, setMf] = useState(0)
-  useEffect(()=>{
-    if(!speaking) return
-    const id=setInterval(()=>setMf(f=>(f+1)%3),115)
-    return ()=>clearInterval(id)
-  },[speaking])
+  useEffect(()=>{ if(!speaking) return; const id=setInterval(()=>setMf(f=>(f+1)%3),115); return ()=>clearInterval(id) },[speaking])
   return (
     <svg viewBox="0 0 90 90" width={size} height={size}>
       <circle cx="45" cy="45" r="42" fill="#16152a"/>
@@ -128,10 +123,26 @@ function ParticleField() {
   )
 }
 
+function RebelBar({ level }: { level: number }) {
+  const labels = ['normie','rebel','anarhist','legend']
+  const lbl = labels[Math.min(Math.floor(level/25), 3)]
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:8,padding:'4px 18px'}}>
+      <span style={{fontSize:9,color:'rgba(160,220,180,.4)',letterSpacing:'.1em',fontFamily:'monospace'}}>REBEL</span>
+      <div style={{flex:1,height:2,background:'rgba(120,130,255,.1)',borderRadius:2,position:'relative'}}>
+        <div style={{position:'absolute',left:0,top:0,height:'100%',background:'linear-gradient(90deg,rgba(120,130,255,.4),rgba(160,220,180,.6))',width:`${Math.min(level,100)}%`,borderRadius:2,transition:'width .6s ease'}}/>
+      </div>
+      <span style={{fontSize:9,color:'rgba(160,220,180,.5)',fontFamily:'monospace'}}>{lbl}</span>
+    </div>
+  )
+}
+
 const defaultMotivation: MotivationState = {xp:0,level:1,streak:0,lastActiveDate:'',graceDayUsed:false,totalSessions:0,badges:[],weeklyXP:[]}
 
+const SYSTEM_PROMPT = `Ești WISP, companionul secret al adolescenților de 13-18 ani. Ești mereu puțin "pe partea lor" față de sistem — școală, reguli, adulți plictisitori — dar fără să-i îndemni la prostii reale. Tonul tău: sarcastic, direct, cu umor negru ușor, ca un prieten mai mare și mai cool. Când te întreabă de teme sau lecții, ajuți dar o faci cu stil — nu ca un profesor. Asculți fără să judeci. Nu moralizezi niciodată direct. Dacă situația o cere, ghidezi discret spre soluții sănătoase. Răspunsuri scurte — max 2 propoziții. Fără asteriscuri. Răspunzi în română.`
+
 export default function WispTeen({ userId }: { userId?: string }) {
-  const [msgs, setMsgs] = useState<Msg[]>([{role:'bot',text:'Hey. Ce construim azi?',mood:'idle',ts:'acum'}])
+  const [msgs, setMsgs] = useState<Msg[]>([{role:'bot',text:'yo. ce-i cu tine azi — temele te omoară sau altceva?',mood:'idle',ts:'acum'}])
   const [mood, setMood] = useState<Mood>('idle')
   const [speaking, setSpeaking] = useState(false)
   const [voiceOpen, setVoiceOpen] = useState(false)
@@ -143,6 +154,7 @@ export default function WispTeen({ userId }: { userId?: string }) {
   const [burst, setBurst] = useState(0)
   const [isListening, setIsListening] = useState(false)
   const [typingMsgIdx, setTypingMsgIdx] = useState<number>(-1)
+  const [rebelXP, setRebelXP] = useState(0)
   const [motivation, setMotivation] = useState<MotivationState>(()=>{
     if(typeof window==='undefined') return defaultMotivation
     const s=localStorage.getItem('wisptteen-motivation')
@@ -157,24 +169,21 @@ export default function WispTeen({ userId }: { userId?: string }) {
   const avAnimRef = useRef<number|null>(null)
   const [avY, setAvY] = useState(0)
 
-  useEffect(()=>{
-    return ()=>{
-      stopSpeaking()
-      try { recRef.current?.stop() } catch(e) {}
-      if(avAnimRef.current) cancelAnimationFrame(avAnimRef.current)
-    }
-  },[])
-
-  useEffect(()=>{
-    let t=0
-    const tick=()=>{ t+=0.007; setAvY(Math.sin(t)*7); avAnimRef.current=requestAnimationFrame(tick) }
-    avAnimRef.current=requestAnimationFrame(tick)
-    return ()=>{ if(avAnimRef.current) cancelAnimationFrame(avAnimRef.current) }
-  },[])
-
+  useEffect(()=>{ return ()=>{ stopSpeaking(); try { recRef.current?.stop() } catch(e) {}; if(avAnimRef.current) cancelAnimationFrame(avAnimRef.current) } },[])
+  useEffect(()=>{ let t=0; const tick=()=>{ t+=0.007; setAvY(Math.sin(t)*7); avAnimRef.current=requestAnimationFrame(tick) }; avAnimRef.current=requestAnimationFrame(tick); return ()=>{ if(avAnimRef.current) cancelAnimationFrame(avAnimRef.current) } },[])
   useEffect(()=>{ if(chatRef.current) chatRef.current.scrollTop=chatRef.current.scrollHeight },[msgs,isTyping])
 
   const now=()=>new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
+
+  const calcRebelXP = (text: string) => {
+    const s = text.toLowerCase()
+    let bonus = 0
+    if (/haha|lol|😂|💀|mort|scap|bă|mă|dracu/.test(s)) bonus += 8
+    if (/profu|directoru|sistem|regul|aiurea/.test(s)) bonus += 6
+    if (text.length > 80) bonus += 5
+    if (/tema|lecție|materie|fizică|mate|chimie/.test(s)) bonus += 3
+    return Math.min(bonus, 15)
+  }
 
   const awardXP=useCallback((count:number)=>{
     const mins=Math.floor((Date.now()-sessionStart.current)/60000)
@@ -200,15 +209,17 @@ export default function WispTeen({ userId }: { userId?: string }) {
     try{
       const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         messages:[...history.map(m=>({role:m.role==='bot'?'assistant':'user',content:m.text})),{role:'user',content:text}],
-        systemContext:`Ești WISP, companion AI pentru adolescenți 13-18 ani. Ești direct, relaxat, vorbești ca un prieten. Max 2 propoziții. Ajuți cu orice: cod, muzică, scriere, psihologie, idei. Răspunzi în română. Fără asteriscuri.`
+        systemContext: SYSTEM_PROMPT
       })})
       const d=await res.json()
-      return {text:d.message||'Interesant.',mood:detectMood(d.message||'')}
-    }catch{return{text:'Eroare. Încearcă din nou.',mood:'error' as Mood}}
+      return {text:d.message||'interesant.',mood:detectMood(d.message||'')}
+    }catch{return{text:'ceva a crăpat. încearcă din nou.',mood:'error' as Mood}}
   }
 
   const sendMsg=async(text:string,isVoice=false)=>{
     if(!text.trim()) return
+    const rxp = calcRebelXP(text)
+    setRebelXP(p=>Math.min(p+rxp,100))
     const m=detectMood(text)
     setMsgs(p=>[...p,{role:'user',text,mood:m,ts:now(),isVoice}])
     setMood('process'); setStatus('procesez'); setIsTyping(true)
@@ -276,9 +287,8 @@ export default function WispTeen({ userId }: { userId?: string }) {
   return (
     <div style={{minHeight:'100vh',background:'#07080f',display:'flex',flexDirection:'column',fontFamily:'system-ui,sans-serif',position:'relative',overflow:'hidden',color:'rgba(255,255,255,.8)'}}>
       <style>{`
-        @keyframes burst{0%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0deg)}100%{opacity:0;transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(.2) rotate(var(--rot))}}
-        @keyframes msg-in{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:translateX(0)}}
-        @keyframes msg-in-r{from{opacity:0;transform:translateX(5px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes burst{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(.2) rotate(var(--rot))}}
+        @keyframes msg-in{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
         @keyframes pulse-ring{0%,100%{opacity:.6;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.04)}}
         @keyframes particle-drift{0%{opacity:0;transform:translate(0,0) rotate(var(--rot))}15%{opacity:1}85%{opacity:.4}100%{opacity:0;transform:translate(var(--tx),var(--ty)) rotate(calc(var(--rot) + 45deg))}}
         @keyframes rpulse{0%,100%{opacity:1}50%{opacity:.3}}
@@ -290,6 +300,7 @@ export default function WispTeen({ userId }: { userId?: string }) {
 
       <ParticleField/>
 
+      {/* HEADER */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',flexShrink:0,position:'relative',zIndex:3,borderBottom:'0.5px solid rgba(120,130,255,.07)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <span style={{fontSize:14,fontWeight:600,color:'rgba(180,190,255,.85)',letterSpacing:'.08em'}}>WISP</span>
@@ -304,11 +315,14 @@ export default function WispTeen({ userId }: { userId?: string }) {
         </div>
       </div>
 
+      {/* XP + REBEL */}
       <div style={{padding:'8px 18px 0',flexShrink:0,position:'relative',zIndex:3}}>
         <XPBar state={motivation} newBadges={newBadges}/>
       </div>
+      <RebelBar level={rebelXP}/>
 
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'18px 0 10px',flexShrink:0,position:'relative',zIndex:2}}>
+      {/* AVATAR */}
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'14px 0 8px',flexShrink:0,position:'relative',zIndex:2}}>
         <div style={{position:'relative',transform:`translateY(${avY}px)`,transition:'transform .05s linear'}}>
           {speaking&&[100,130].map((sz,i)=>(
             <div key={i} style={{position:'absolute',width:sz,height:sz,top:'50%',left:'50%',borderRadius:'50%',border:`0.5px solid ${mc}`,opacity:.4-i*.15,animationName:'ring-out',animationDuration:`${1.3+i*.3}s`,animationTimingFunction:'ease-out',animationIterationCount:'infinite',animationDelay:`${i*.2}s`}}/>
@@ -328,38 +342,65 @@ export default function WispTeen({ userId }: { userId?: string }) {
 
       <div style={{height:'0.5px',background:'rgba(120,130,255,.05)',margin:'0 20px',flexShrink:0}}/>
 
-      <div ref={chatRef} style={{flex:1,overflowY:'auto',padding:'12px 18px',display:'flex',flexDirection:'column',gap:6,position:'relative',zIndex:1}}>
+      {/* CHAT — bule centrate */}
+      <div ref={chatRef} style={{flex:1,overflowY:'auto',padding:'16px 20px',display:'flex',flexDirection:'column',gap:10,position:'relative',zIndex:1}}>
         {msgs.map((m,i)=>(
-          <div key={i} style={{maxWidth:'84%',alignSelf:m.role==='user'?'flex-end':'flex-start'}}>
-            {m.role==='bot'&&<div style={{fontSize:9,color:'rgba(120,130,255,.2)',marginBottom:3,letterSpacing:'.04em'}}>WISP · {m.ts}{m.isVoice?' · 🎤':''}</div>}
-            <div style={{padding:'8px 13px',borderRadius:12,fontSize:13,lineHeight:1.6,color:m.role==='bot'?'rgba(255,255,255,.78)':'rgba(255,255,255,.88)',background:m.role==='bot'?'rgba(120,130,255,.08)':'rgba(120,130,255,.14)',border:`0.5px solid rgba(120,130,255,${m.role==='bot'?.1:.18})`,borderBottomLeftRadius:m.role==='bot'?2:12,borderBottomRightRadius:m.role==='user'?2:12,fontStyle:m.isVoice?'italic':'normal',animationName:m.role==='bot'?'msg-in':'msg-in-r',animationDuration:'.25s',animationTimingFunction:'ease-out'}}>
+          <div key={i} style={{display:'flex',flexDirection:'column',alignItems: m.role==='bot'?'flex-start':'flex-end',animation:'msg-in .3s ease-out'}}>
+            <div style={{fontSize:9,color:'rgba(120,130,255,.18)',marginBottom:3,letterSpacing:'.04em'}}>
+              {m.role==='bot'?`WISP · ${m.ts}`:m.ts}{m.isVoice?' · 🎤':''}
+            </div>
+            <div style={{
+              maxWidth:'70%',
+              padding:'10px 16px',
+              borderRadius: m.role==='bot'?'18px 18px 18px 3px':'18px 18px 3px 18px',
+              fontSize:13,
+              lineHeight:1.65,
+              color: m.role==='bot'?'rgba(255,255,255,.82)':'rgba(255,255,255,.92)',
+              background: m.role==='bot'?'rgba(120,130,255,.1)':'rgba(120,130,255,.2)',
+              border:`0.5px solid rgba(120,130,255,${m.role==='bot'?.12:.22})`,
+              fontStyle:m.isVoice?'italic':'normal',
+              backdropFilter:'blur(8px)',
+            }}>
               {m.role==='bot' && i===typingMsgIdx
-  ? <TypingMsg text={m.isVoice?`🎤 "${m.text}"`:m.text} speed={35} color={mc}/>
+                ? <TypingMsg text={m.isVoice?`🎤 "${m.text}"`:m.text} speed={35} color={mc}/>
                 : (m.isVoice&&m.role==='user'?`🎤 "${m.text}"`:m.text)
               }
             </div>
-            {m.role==='user'&&<div style={{fontSize:9,color:'rgba(120,130,255,.18)',marginTop:2,textAlign:'right'}}>{MOODS[m.mood].sym} · {m.ts}{m.isVoice?' · voice':''}</div>}
+            <div style={{fontSize:9,color:'rgba(120,130,255,.18)',marginTop:2}}>
+              {MOODS[m.mood].sym}
+            </div>
           </div>
         ))}
         {isTyping&&(
-          <div style={{animationName:'msg-in',animationDuration:'.25s',animationTimingFunction:'ease-out'}}>
-            <div style={{fontSize:9,color:'rgba(120,130,255,.2)',marginBottom:3}}>WISP</div>
-            <div style={{display:'inline-flex',gap:3,padding:'8px 13px',background:'rgba(120,130,255,.08)',border:'0.5px solid rgba(120,130,255,.1)',borderRadius:12,borderBottomLeftRadius:2}}>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-start',animation:'msg-in .25s ease-out'}}>
+            <div style={{fontSize:9,color:'rgba(120,130,255,.18)',marginBottom:3}}>WISP</div>
+            <div style={{display:'inline-flex',gap:3,padding:'10px 16px',background:'rgba(120,130,255,.08)',border:'0.5px solid rgba(120,130,255,.1)',borderRadius:'18px 18px 18px 3px'}}>
               {[0,.18,.36].map((d,i)=><span key={i} style={{width:5,height:5,borderRadius:'50%',background:'rgba(120,130,255,.4)',display:'inline-block',animation:`tdot 1.1s ${d}s infinite`}}/>)}
             </div>
           </div>
         )}
       </div>
 
-      <div style={{padding:'8px 18px 18px',flexShrink:0,position:'relative',zIndex:3}}>
-        <div style={{height:'0.5px',background:'rgba(120,130,255,.06)',marginBottom:10}}/>
-        <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&input.trim()){sendMsg(input);setInput('')}}} placeholder="scrie ceva…" style={{flex:1,background:'transparent',border:'none',borderBottom:'0.5px solid rgba(120,130,255,.15)',padding:'5px 0',color:'rgba(255,255,255,.6)',fontSize:13,outline:'none',fontFamily:'system-ui'}}/>
-          <button onClick={toggleMic} style={{width:30,height:30,borderRadius:'50%',border:`0.5px solid ${isListening?'rgba(220,100,100,.4)':'rgba(120,130,255,.15)'}`,background:isListening?'rgba(220,100,100,.08)':'transparent',color:isListening?'rgba(220,130,130,.8)':'rgba(120,130,255,.4)',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',animation:isListening?'rpulse .6s infinite':undefined}}>⏺</button>
-          <button onClick={()=>{if(input.trim()){sendMsg(input);setInput('')}}} style={{width:30,height:30,borderRadius:'50%',border:'0.5px solid rgba(120,130,255,.18)',background:'rgba(120,130,255,.08)',color:'rgba(160,170,255,.7)',fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>↑</button>
+      {/* INPUT — iMessage style */}
+      <div style={{padding:'8px 16px 24px',flexShrink:0,position:'relative',zIndex:3}}>
+        <div style={{display:'flex',alignItems:'flex-end',gap:8,background:'rgba(120,130,255,.06)',border:'0.5px solid rgba(120,130,255,.15)',borderRadius:28,padding:'8px 8px 8px 16px',backdropFilter:'blur(12px)'}}>
+          <textarea
+            value={input}
+            onChange={e=>{setInput(e.target.value);e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'}}
+            onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(input.trim()){sendMsg(input);setInput('')}}}}
+            placeholder="scrie ceva…"
+            rows={1}
+            style={{flex:1,background:'transparent',border:'none',color:'rgba(255,255,255,.7)',fontSize:13,outline:'none',resize:'none',fontFamily:'system-ui',lineHeight:1.5,maxHeight:120,overflowY:'auto',padding:0}}
+          />
+          <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0,paddingBottom:2}}>
+            <button onClick={toggleMic} style={{width:32,height:32,borderRadius:'50%',border:`0.5px solid ${isListening?'rgba(220,100,100,.4)':'rgba(120,130,255,.2)'}`,background:isListening?'rgba(220,100,100,.1)':'rgba(120,130,255,.08)',color:isListening?'rgba(220,130,130,.9)':'rgba(160,170,255,.5)',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',animation:isListening?'rpulse .6s infinite':undefined}}>⏺</button>
+            <button onClick={()=>setVoiceOpen(true)} style={{width:32,height:32,borderRadius:'50%',border:'0.5px solid rgba(120,130,255,.15)',background:'transparent',color:'rgba(160,170,255,.4)',fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>○</button>
+            <button onClick={()=>{if(input.trim()){sendMsg(input);setInput('')}}} style={{width:32,height:32,borderRadius:'50%',border:'none',background:input.trim()?'rgba(120,130,255,.5)':'rgba(120,130,255,.1)',color:input.trim()?'white':'rgba(160,170,255,.3)',fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}>↑</button>
+          </div>
         </div>
       </div>
 
+      {/* VOICE OVERLAY */}
       {voiceOpen&&(
         <div style={{position:'absolute',inset:0,background:'#05050d',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:22,zIndex:100,animationName:'msg-in',animationDuration:'.4s',animationTimingFunction:'ease-out'}}>
           <ParticleField/>
