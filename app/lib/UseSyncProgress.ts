@@ -25,86 +25,85 @@ function getStoredUsername(product: string): string {
   return localStorage.getItem(`${product}-username`) || 'Utilizator'
 }
 
-// Inițiale din username
+// Recuperează inițialele
 function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'U'
 }
 
-async function upsertProgress(
-  anonId: string,
-  username: string,
-  product: string,
-  state: MotivationState
-) {
-  const level = getLevel(state.xp)
+async function syncToSupabase(
+  motivation: MotivationState,
+  product: string
+): Promise<void> {
+  if (typeof window === 'undefined') return
+  if (!SUPABASE_URL || !SUPABASE_KEY) return
+
+  const anonId = getAnonId()
+  const username = getStoredUsername(product)
   const initials = getInitials(username)
+  const level = getLevel(motivation.xp).level
 
-  // Upsert — dacă există updatează, dacă nu creează
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/user_progress`, {
-    method: 'POST',
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'resolution=merge-duplicates',
-    },
-    body: JSON.stringify({
-      anon_id: anonId,
-      username,
-      avatar_initials: initials,
-      product,
-      xp: state.xp,
-      level: level.level,
-      streak: state.streak,
-      total_sessions: state.totalSessions,
-      last_active: new Date().toISOString(),
-    }),
-  })
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/user_progress`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        anon_id: anonId,
+        username,
+        avatar_initials: initials,
+        product,
+        xp: motivation.xp,
+        level,
+        streak: motivation.streak,
+        total_sessions: motivation.totalSessions,
+        last_active: new Date().toISOString(),
+      }),
+    })
 
-  if (!res.ok) {
-    const err = await res.text()
-    console.warn('[useSyncProgress] Supabase error:', err)
+    if (!res.ok) {
+      const err = await res.text()
+      console.warn('Supabase sync error:', err)
+    }
+  } catch (e) {
+    console.warn('Sync failed:', e)
   }
 }
 
-interface SyncOptions {
-  product: 'junior' | 'teen' | 'flow'
-  username?: string
-}
+export function useSyncProgress(
+  motivation: MotivationState,
+  options: { product: 'junior' | 'teen' | 'flow' }
+) {
+  const { product } = options
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevXP = useRef(motivation.xp)
+  const prevStreak = useRef(motivation.streak)
 
-export function useSyncProgress(state: MotivationState, options: SyncOptions) {
-  const anonId = useRef<string>('')
-  const lastSyncedXP = useRef<number>(-1)
-  const debounceRef = useRef<any>(null)
+  const sync = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      syncToSupabase(motivation, product)
+    }, 3000) // debounce 3s
+  }, [motivation, product])
 
   useEffect(() => {
-    anonId.current = getAnonId()
-  }, [])
-
-  // Sincronizează cu debounce de 3s — nu spamăm Supabase
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (!anonId.current) return
-    if (state.xp === lastSyncedXP.current) return
-
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-
-    debounceRef.current = setTimeout(() => {
-      const username = options.username || getStoredUsername(options.product)
-      lastSyncedXP.current = state.xp
-      upsertProgress(anonId.current, username, options.product, state)
-    }, 3000)
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
+    // Sincronizează doar dacă XP sau streak s-a schimbat
+    if (
+      motivation.xp !== prevXP.current ||
+      motivation.streak !== prevStreak.current
+    ) {
+      prevXP.current = motivation.xp
+      prevStreak.current = motivation.streak
+      sync()
     }
-  }, [state.xp, state.streak, state.totalSessions, options.product, options.username])
+  }, [motivation.xp, motivation.streak, sync])
 
-  // Funcție pentru a seta username manual
-  const setUsername = useCallback((name: string) => {
-    if (typeof window === 'undefined') return
-    localStorage.setItem(`${options.product}-username`, name)
-  }, [options.product])
-
-  return { setUsername, anonId: anonId.current }
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
 }
