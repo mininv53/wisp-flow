@@ -1,4 +1,5 @@
 'use client'
+import { useSyncProgress } from '../lib/UseSyncProgress.js'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import XPBar from './XPBar'
 import AchievementPopup from './AchievementPopup'
@@ -139,7 +140,7 @@ export default function WispTeen({userId}:{userId?:string}){
   const avAnimRef=useRef<number|null>(null)
   const [avY,setAvY]=useState(0)
   const {bgMood,intensity,kwParticles}=useDynamicBg(msgs,MOODS[mood].bg)
-
+  useSyncProgress(motivation, { product: 'teen' })
   useEffect(()=>{return()=>{stopSpeaking();try{recRef.current?.stop()}catch(e){};if(avAnimRef.current)cancelAnimationFrame(avAnimRef.current)}},[])
   useEffect(()=>{let t=0;const tick=()=>{t+=0.005;setAvY(Math.sin(t)*9);avAnimRef.current=requestAnimationFrame(tick)};avAnimRef.current=requestAnimationFrame(tick);return()=>{if(avAnimRef.current)cancelAnimationFrame(avAnimRef.current)}},[])
   const now=()=>new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})

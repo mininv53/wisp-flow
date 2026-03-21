@@ -1,4 +1,5 @@
 'use client'
+import { useSyncProgress } from '../lib/UseSyncProgress.js'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import XPBar from './XPBar'
 import AchievementPopup from './AchievementPopup'
@@ -137,7 +138,7 @@ export default function Wisp({userId}:{userId?:string}){
   const recRef=useRef<any>(null)
   const sessionStart=useRef(Date.now())
   const {bgMood,intensity,kwParticles}=useDynamicBg(msgs,MOODS[mood].bg)
-
+  useSyncProgress(motivation, { product: 'junior' })
   useEffect(()=>{return()=>{stopSpeaking();try{recRef.current?.stop()}catch(e){}}},[])
   const now=()=>new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'})
 
