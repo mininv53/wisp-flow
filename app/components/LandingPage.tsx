@@ -146,6 +146,148 @@ function ParticleBg({ mx, my }: { mx: number; my: number }) {
   )
 }
 
+
+// ── LEADERBOARD COMPONENT ──────────────────────────────────
+interface LeaderEntry {
+  username: string
+  avatar_initials: string
+  product: 'junior'|'teen'|'flow'
+  xp: number
+  level: number
+  streak: number
+}
+
+const PRODUCT_COLORS: Record<string,string> = {
+  junior: 'rgba(180,130,255,.8)',
+  teen:   'rgba(220,120,60,.8)',
+  flow:   'rgba(160,80,220,.8)',
+}
+const PRODUCT_LABELS: Record<string,string> = {
+  junior: 'Junior', teen: 'Teen', flow: 'Flow'
+}
+
+function LeaderboardSection() {
+  const [tab, setTab] = useState<'xp'|'streak'>('xp')
+  const [data, setData] = useState<LeaderEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const { ref, visible } = useInView()
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/leaderboard?type=${tab}`)
+      .then(r => r.json())
+      .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [tab])
+
+  const medal = (i: number) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null
+
+  return (
+    <section id="leaderboard" style={{ padding: '120px 32px', maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 2 }}>
+      <div ref={ref} className={`reveal ${visible ? 'in' : ''}`}>
+        {/* header */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 52, flexWrap: 'wrap', gap: 24 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+              <div style={{ width: 28, height: 1, background: 'rgba(220,120,60,.4)' }}/>
+              <span style={{ fontSize: 11, color: 'rgba(220,120,60,.5)', letterSpacing: '.2em', textTransform: 'uppercase' }}>Comunitate</span>
+            </div>
+            <h2 className="serif" style={{ fontSize: 'clamp(2.2rem,5vw,4.5rem)', lineHeight: 1.05, color: 'rgba(255,255,255,.88)' }}>
+              Top utilizatori.<br/>
+              <span className="serif-i" style={{ color: 'rgba(255,255,255,.25)' }}>Progres real.</span>
+            </h2>
+          </div>
+          {/* tabs */}
+          <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,.03)', border: '0.5px solid rgba(255,255,255,.07)', borderRadius: 40, padding: 4 }}>
+            {(['xp','streak'] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{ padding: '8px 20px', borderRadius: 36, fontSize: 12, fontWeight: 400, cursor: 'pointer', border: 'none', background: tab === t ? (t === 'xp' ? 'rgba(220,120,60,.2)' : 'rgba(160,80,220,.2)') : 'transparent', color: tab === t ? (t === 'xp' ? 'rgba(220,120,60,.9)' : 'rgba(160,80,220,.9)') : 'rgba(255,255,255,.3)', transition: 'all .25s', letterSpacing: '.04em' }}>
+                {t === 'xp' ? '⚡ XP' : '🔥 Streak'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {loading ? (
+            Array.from({length: 5}).map((_,i) => (
+              <div key={i} style={{ height: 64, borderRadius: 14, background: 'rgba(255,255,255,.02)', border: '0.5px solid rgba(255,255,255,.04)', animation: 'shimmer 1.5s ease-in-out infinite', opacity: 1 - i * 0.15 }}/>
+            ))
+          ) : data.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 0', color: 'rgba(255,255,255,.2)', fontSize: 14, fontStyle: 'italic' }}>
+              Niciun utilizator încă. Fii primul! 🚀
+            </div>
+          ) : data.map((entry, i) => {
+            const isTop3 = i < 3
+            const accentCol = PRODUCT_COLORS[entry.product] || 'rgba(220,120,60,.8)'
+            return (
+              <div key={i} className={`reveal d${Math.min(i+1,4)} ${visible?'in':''}`} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px', borderRadius: 14, background: isTop3 ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.015)', border: `0.5px solid ${isTop3 ? 'rgba(220,120,60,.12)' : 'rgba(255,255,255,.04)'}`, transition: 'all .25s', cursor: 'default', position: 'relative', overflow: 'hidden' }}
+                onMouseEnter={(e:any) => { e.currentTarget.style.background = 'rgba(255,255,255,.05)'; e.currentTarget.style.borderColor = 'rgba(220,120,60,.2)' }}
+                onMouseLeave={(e:any) => { e.currentTarget.style.background = isTop3 ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.015)'; e.currentTarget.style.borderColor = isTop3 ? 'rgba(220,120,60,.12)' : 'rgba(255,255,255,.04)' }}>
+
+                {/* top 3 glow */}
+                {isTop3 && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2, background: i === 0 ? 'linear-gradient(180deg,rgba(255,200,50,.6),rgba(220,120,60,.4))' : i === 1 ? 'linear-gradient(180deg,rgba(180,180,180,.5),rgba(140,140,140,.3))' : 'linear-gradient(180deg,rgba(180,100,40,.5),rgba(140,80,30,.3))', borderRadius: '2px 0 0 2px' }}/>}
+
+                {/* rank */}
+                <div style={{ width: 32, textAlign: 'center', flexShrink: 0 }}>
+                  {medal(i)
+                    ? <span style={{ fontSize: 18 }}>{medal(i)}</span>
+                    : <span style={{ fontSize: 13, color: 'rgba(255,255,255,.2)', fontFamily: 'monospace' }}>{i + 1}</span>
+                  }
+                </div>
+
+                {/* avatar */}
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: `${accentCol.replace('.8)', '.15)')}`, border: `0.5px solid ${accentCol.replace('.8)', '.3)')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, color: accentCol, flexShrink: 0, letterSpacing: '.02em' }}>
+                  {entry.avatar_initials || entry.username?.slice(0,2).toUpperCase() || '??'}
+                </div>
+
+                {/* name + product */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, color: 'rgba(255,255,255,.78)', fontWeight: 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.username || 'Anonim'}</div>
+                  <div style={{ fontSize: 10, color: accentCol.replace('.8)', '.5)'), marginTop: 2, letterSpacing: '.06em' }}>
+                    {PRODUCT_LABELS[entry.product] || entry.product} · Nv. {entry.level}
+                  </div>
+                </div>
+
+                {/* XP bar — doar la tab xp */}
+                {tab === 'xp' && (
+                  <div style={{ width: 100, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4, fontSize: 11, color: 'rgba(220,120,60,.7)', fontFamily: 'monospace', fontWeight: 500 }}>
+                      {entry.xp.toLocaleString()} XP
+                    </div>
+                    <div style={{ height: 2, background: 'rgba(255,255,255,.06)', borderRadius: 1, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: visible ? `${Math.min((entry.xp / (data[0]?.xp || 1)) * 100, 100)}%` : '0%', background: `linear-gradient(90deg,rgba(220,120,60,.6),rgba(160,80,220,.5))`, borderRadius: 1, transition: `width 1.2s ${i * 0.08}s ease` }}/>
+                    </div>
+                  </div>
+                )}
+
+                {/* streak */}
+                {tab === 'streak' && (
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 16, color: 'rgba(255,180,60,.8)', fontFamily: 'monospace', fontWeight: 500 }}>
+                      🔥 {entry.streak}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', marginTop: 2 }}>zile</div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* footer note */}
+        <div style={{ marginTop: 24, textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,.14)', fontStyle: 'italic' }}>
+          Actualizat în timp real · Date anonimizate
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes shimmer{0%,100%{opacity:.4}50%{opacity:.8}}
+      `}</style>
+    </section>
+  )
+}
+
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false)
   const [mx, setMx] = useState(50)
@@ -232,7 +374,7 @@ export default function LandingPage() {
             Wisp<span style={{ color: 'rgba(220,120,60,.5)' }}>+</span>Flow
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 32, fontSize: 12, color: 'rgba(255,255,255,.3)', letterSpacing: '.12em', textTransform: 'uppercase' }}>
-            {[['#produse', 'Produse'], ['#progres', 'Progres'], ['#preturi', 'Prețuri']].map(([href, label]) => (
+            {[['#produse', 'Produse'], ['#progres', 'Progres'], ['#leaderboard', 'Top'], ['#preturi', 'Prețuri']].map(([href, label]) => (
               <a key={href} href={href} style={{ color: 'rgba(255,255,255,.3)', textDecoration: 'none', transition: 'color .2s' }}
                 onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,.7)')}
                 onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,.3)')}>{label}</a>
@@ -617,6 +759,10 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      <hr className="line" style={{ maxWidth: 1100, margin: '0 auto' }}/>
+
+      <LeaderboardSection/>
 
       {/* ── FOOTER ── */}
       <footer style={{ borderTop: '0.5px solid rgba(220,120,60,.07)', padding: '40px 32px', position: 'relative', zIndex: 2 }}>
