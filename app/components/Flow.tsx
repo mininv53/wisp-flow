@@ -1,5 +1,5 @@
 'use client'
-import { useSyncProgress } from '../lib/UseSyncProgress.js'
+import { useSyncProgress } from '../lib/UseSyncProgress'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import XPBar from './XPBar'
 import AchievementPopup from './AchievementPopup'
