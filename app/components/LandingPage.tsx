@@ -343,11 +343,19 @@ export default function LandingPage() {
                 onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,.3)')}>{label}</a>
             ))}
           </div>
-          <Link href="/flow" className="nav-cta" style={{ fontSize: 12, border: '0.5px solid rgba(220,120,60,.3)', color: 'rgba(220,120,60,.8)', padding: '8px 20px', borderRadius: 40, textDecoration: 'none', transition: 'all .25s', background: 'rgba(220,120,60,.06)' }}
-            onMouseEnter={(e: any) => { e.currentTarget.style.background = 'rgba(220,120,60,.14)'; e.currentTarget.style.borderColor = 'rgba(220,120,60,.6)' }}
-            onMouseLeave={(e: any) => { e.currentTarget.style.background = 'rgba(220,120,60,.06)'; e.currentTarget.style.borderColor = 'rgba(220,120,60,.3)' }}>
-            hai să încercăm
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <a href="https://wisp-flow.vercel.app/" target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 11, color: 'rgba(255,255,255,.22)', textDecoration: 'none', letterSpacing: '.04em', fontFamily: 'monospace', transition: 'color .2s' }}
+              onMouseEnter={(e: any) => e.currentTarget.style.color = 'rgba(220,120,60,.7)'}
+              onMouseLeave={(e: any) => e.currentTarget.style.color = 'rgba(255,255,255,.22)'}>
+              wisp-flow.vercel.app
+            </a>
+            <Link href="/flow" className="nav-cta" style={{ fontSize: 12, border: '0.5px solid rgba(220,120,60,.3)', color: 'rgba(220,120,60,.8)', padding: '8px 20px', borderRadius: 40, textDecoration: 'none', transition: 'all .25s', background: 'rgba(220,120,60,.06)' }}
+              onMouseEnter={(e: any) => { e.currentTarget.style.background = 'rgba(220,120,60,.14)'; e.currentTarget.style.borderColor = 'rgba(220,120,60,.6)' }}
+              onMouseLeave={(e: any) => { e.currentTarget.style.background = 'rgba(220,120,60,.06)'; e.currentTarget.style.borderColor = 'rgba(220,120,60,.3)' }}>
+              hai să încercăm
+            </Link>
+          </div>
           <button className="nav-hamburger" onClick={() => setMobileMenuOpen(v => !v)}>
             {mobileMenuOpen ? '✕' : '☰'}
           </button>
@@ -698,6 +706,21 @@ export default function LandingPage() {
           <div>
             <p style={{ fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,.45)', marginBottom: 4 }}>Wisp<span style={{ color: 'rgba(220,120,60,.35)' }}>+</span>Flow</p>
             <p style={{ fontSize: 11, color: 'rgba(255,255,255,.14)', fontWeight: 300 }}>construit pentru minți care funcționează altfel. © 2026</p>
+            {/* link scanabil */}
+            <a href="https://wisp-flow.vercel.app/" target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-block', marginTop: 10, fontSize: 12, color: 'rgba(220,120,60,.6)', textDecoration: 'none', fontFamily: 'monospace', letterSpacing: '.04em', borderBottom: '0.5px solid rgba(220,120,60,.25)', paddingBottom: 1, transition: 'color .2s' }}>
+              wisp-flow.vercel.app ↗
+            </a>
+          </div>
+          {/* QR code - generat via api publică, fără autentificare */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <img
+              src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=https://wisp-flow.vercel.app/&bgcolor=100a0a&color=DC7838&qzone=1"
+              alt="QR wisp-flow.vercel.app"
+              width={90} height={90}
+              style={{ borderRadius: 8, border: '0.5px solid rgba(220,120,60,.2)' }}
+            />
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,.12)', fontFamily: 'monospace', letterSpacing: '.04em' }}>scanează</span>
           </div>
           <div className="footer-links">
             {[['Wisp Junior', '/wisp'], ['Wisp Teen', '/wisp-teen'], ['Flow', '/flow'], ['Contact', 'mailto:hello@wispflow.ai']].map(([label, href]) => (
